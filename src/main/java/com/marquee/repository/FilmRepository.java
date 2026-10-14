@@ -20,25 +20,116 @@ public final class FilmRepository {
         this.database = database;
     }
 
-    public List<Film> findAll() throws SQLException {
-        String sql = """
-            SELECT film_id, title, year, created_at
-            FROM films
-            ORDER BY film_id
-            """;
+    public List<Film> findAll(
+            String genre,
+            Integer year,
+            String title,
+            int page,
+            int perPage
+    ) throws SQLException {
+
+        StringBuilder sql = new StringBuilder("""
+            SELECT f.film_id, f.title, f.year, f.created_at
+            FROM films f
+            WHERE 1 = 1
+            """);
+
+        List<Object> parameters = new ArrayList<>();
+
+        if (genre != null && !genre.isBlank()) {
+            sql.append("""
+                AND EXISTS (
+                    SELECT 1
+                    FROM film_genres fg
+                    JOIN genres g ON g.genre_id = fg.genre_id
+                    WHERE fg.film_id = f.film_id
+                      AND LOWER(g.name) = LOWER(?)
+                )
+                """);
+            parameters.add(genre.trim());
+        }
+
+        if (year != null) {
+            sql.append(" AND f.year = ?");
+            parameters.add(year);
+        }
+
+        if (title != null && !title.isBlank()) {
+            sql.append(" AND LOWER(f.title) LIKE LOWER(?)");
+            parameters.add("%" + title.trim() + "%");
+        }
+
+        sql.append(" ORDER BY f.film_id LIMIT ? OFFSET ?");
+
+        parameters.add(perPage);
+        parameters.add((page - 1) * perPage);
 
         List<Film> films = new ArrayList<>();
 
         try (Connection connection = database.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
+             PreparedStatement statement =
+                     connection.prepareStatement(sql.toString())) {
 
-            while (result.next()) {
-                films.add(mapFilm(connection, result, false));
+            bindParameters(statement, parameters);
+
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    films.add(mapFilm(connection, result, false));
+                }
             }
         }
 
         return films;
+    }
+
+    public int count(
+            String genre,
+            Integer year,
+            String title
+    ) throws SQLException {
+
+        StringBuilder sql = new StringBuilder("""
+            SELECT COUNT(*)
+            FROM films f
+            WHERE 1 = 1
+            """);
+
+        List<Object> parameters = new ArrayList<>();
+
+        if (genre != null && !genre.isBlank()) {
+            sql.append("""
+                AND EXISTS (
+                    SELECT 1
+                    FROM film_genres fg
+                    JOIN genres g ON g.genre_id = fg.genre_id
+                    WHERE fg.film_id = f.film_id
+                      AND LOWER(g.name) = LOWER(?)
+                )
+                """);
+            parameters.add(genre.trim());
+        }
+
+        if (year != null) {
+            sql.append(" AND f.year = ?");
+            parameters.add(year);
+        }
+
+        if (title != null && !title.isBlank()) {
+            sql.append(" AND LOWER(f.title) LIKE LOWER(?)");
+            parameters.add("%" + title.trim() + "%");
+        }
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement =
+                     connection.prepareStatement(sql.toString())) {
+
+            bindParameters(statement, parameters);
+
+            try (ResultSet result = statement.executeQuery()) {
+                result.next();
+                return result.getInt(1);
+            }
+        }
     }
 
     public Optional<Film> findById(int filmId) throws SQLException {
@@ -60,6 +151,16 @@ public final class FilmRepository {
 
                 return Optional.of(mapFilm(connection, result, true));
             }
+        }
+    }
+
+    private void bindParameters(
+            PreparedStatement statement,
+            List<Object> parameters
+    ) throws SQLException {
+
+        for (int i = 0; i < parameters.size(); i++) {
+            statement.setObject(i + 1, parameters.get(i));
         }
     }
 

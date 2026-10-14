@@ -7,8 +7,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import java.io.IOException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,59 +26,143 @@ public final class FilmHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
-            if (!exchange.getRequestMethod().equals("GET")) {
-                send(exchange, 405, Map.of(
-                    "error", Map.of(
-                        "code", 405,
-                        "message", "Method not allowed"
-                    )
-                ));
-                return;
-            }
-
-            String path = exchange.getRequestURI().getPath();
-            String base = "/films";
-
-            if (path.equals(base) || path.equals(base + "/")) {
-                send(exchange, 200, Map.of(
-                    "page", 1,
-                    "per_page", 20,
-                    "total", service.listFilms().size(),
-                    "films", service.listFilms()
-                ));
-                return;
-            }
-
-            String suffix = path.substring((base + "/").length());
-
-            if (suffix.isBlank() || suffix.contains("/")) {
-                sendError(exchange, 404, "Film not found");
-                return;
-            }
-
-            int filmId;
             try {
-                filmId = Integer.parseInt(suffix);
-            } catch (NumberFormatException exception) {
-                sendError(exchange, 400, "Invalid film ID");
-                return;
+                String path = exchange.getRequestURI().getPath();
+
+                if (!path.equals("/films") && !path.equals("/films/")) {
+                    if (!path.startsWith("/films/")) {
+                        sendError(exchange, 404, "Route not found");
+                        return;
+                    }
+
+                    if (!exchange.getRequestMethod().equals("GET")) {
+                        sendError(exchange, 405, "Method not allowed");
+                        return;
+                    }
+
+                    handleFilmById(
+                        exchange, path.substring("/films/".length())
+                    );
+                    return;
+                }
+
+                if (!exchange.getRequestMethod().equals("GET")) {
+                    sendError(exchange, 405, "Method not allowed");
+                    return;
+                }
+
+                Map<String, String> query = parseQuery(
+                    exchange.getRequestURI().getRawQuery()
+                );
+
+                String genre = query.get("genre");
+                String title = query.get("title");
+                Integer year = parseOptionalInteger(query, "year");
+                int page = parseInteger(
+                    query.getOrDefault("page", "1"), "page"
+                );
+                int perPage = parseInteger(
+                    query.getOrDefault("per_page", "20"), "per_page"
+                );
+
+                FilmService.FilmPage result = service.listFilms(
+                    genre, year, title, page, perPage
+                );
+
+                send(exchange, 200, result);
+
+            } catch (IllegalArgumentException exception) {
+                sendError(exchange, 400, exception.getMessage());
+            } catch (SQLException exception) {
+                sendError(exchange, 500, "Database operation failed");
+            } catch (Exception exception) {
+                sendError(exchange, 500, "Internal server error");
+            }
+        }
+    }
+
+    private void handleFilmById(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+
+        if (suffix.isBlank() || suffix.contains("/")) {
+            sendError(exchange, 404, "Film not found");
+            return;
+        }
+
+        int filmId = parseInteger(suffix, "film ID");
+        Optional<Film> film = service.getFilm(filmId);
+
+        if (film.isEmpty()) {
+            sendError(exchange, 404, "Film not found");
+            return;
+        }
+
+        send(exchange, 200, film.get());
+    }
+
+    private Map<String, String> parseQuery(String rawQuery) {
+        Map<String, String> parameters = new HashMap<>();
+
+        if (rawQuery == null || rawQuery.isBlank()) {
+            return parameters;
+        }
+
+        for (String pair : rawQuery.split("&")) {
+            String[] parts = pair.split("=", 2);
+
+            String key = URLDecoder.decode(
+                parts[0], StandardCharsets.UTF_8
+            );
+            String value = parts.length > 1
+                ? URLDecoder.decode(parts[1], StandardCharsets.UTF_8)
+                : "";
+
+            if (!key.matches("[a-zA-Z_]+")) {
+                throw new IllegalArgumentException(
+                    "Invalid query parameter name"
+                );
             }
 
-            Optional<Film> film = service.getFilm(filmId);
-
-            if (film.isEmpty()) {
-                sendError(exchange, 404, "Film not found");
-                return;
+            if (parameters.putIfAbsent(key, value) != null) {
+                throw new IllegalArgumentException(
+                    "Duplicate query parameter: " + key
+                );
             }
+        }
 
-            send(exchange, 200, film.get());
+        for (String key : parameters.keySet()) {
+            if (!key.equals("genre")
+                    && !key.equals("year")
+                    && !key.equals("title")
+                    && !key.equals("page")
+                    && !key.equals("per_page")) {
+                throw new IllegalArgumentException(
+                    "Unknown query parameter: " + key
+                );
+            }
+        }
 
-        } catch (IllegalArgumentException exception) {
-            sendError(exchange, 400, exception.getMessage());
-        } catch (SQLException exception) {
-            sendError(exchange, 500, "Database operation failed");
-        } catch (Exception exception) {
-            sendError(exchange, 500, "Internal server error");
+        return parameters;
+    }
+
+    private Integer parseOptionalInteger(
+            Map<String, String> query, String key
+    ) {
+        if (!query.containsKey(key)) {
+            return null;
+        }
+
+        return parseInteger(query.get(key), key);
+    }
+
+    private int parseInteger(String value, String field) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException(
+                field + " must be an integer"
+            );
         }
     }
 
@@ -84,7 +170,10 @@ public final class FilmHandler implements HttpHandler {
             HttpExchange exchange, int status, String message
     ) throws IOException {
         send(exchange, status, Map.of(
-            "error", Map.of("code", status, "message", message)
+            "error", Map.of(
+                "code", status,
+                "message", message
+            )
         ));
     }
 
@@ -96,6 +185,7 @@ public final class FilmHandler implements HttpHandler {
         exchange.getResponseHeaders().set(
             "Content-Type", "application/json; charset=utf-8"
         );
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
 
         exchange.sendResponseHeaders(status, bytes.length);
 

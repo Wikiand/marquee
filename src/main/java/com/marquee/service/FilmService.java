@@ -9,14 +9,49 @@ import java.util.Optional;
 
 public final class FilmService {
 
+    public static final int DEFAULT_PAGE = 1;
+    public static final int DEFAULT_PER_PAGE = 20;
+    public static final int MAX_PER_PAGE = 100;
+
     private final FilmRepository repository;
 
     public FilmService(FilmRepository repository) {
         this.repository = repository;
     }
 
-    public List<Film> listFilms() throws SQLException {
-        return repository.findAll();
+    public FilmPage listFilms(
+            String genre,
+            Integer year,
+            String title,
+            int page,
+            int perPage
+    ) throws SQLException {
+
+        if (year != null && year <= 0) {
+            throw new IllegalArgumentException(
+                "Year must be a positive integer"
+            );
+        }
+
+        if (page < 1) {
+            throw new IllegalArgumentException(
+                "Page must be at least 1"
+            );
+        }
+
+        if (perPage < 1 || perPage > MAX_PER_PAGE) {
+            throw new IllegalArgumentException(
+                "per_page must be between 1 and " + MAX_PER_PAGE
+            );
+        }
+
+        List<Film> films = repository.findAll(
+            genre, year, title, page, perPage
+        );
+
+        int total = repository.count(genre, year, title);
+
+        return new FilmPage(page, perPage, total, films);
     }
 
     public Optional<Film> getFilm(int filmId) throws SQLException {
@@ -27,5 +62,16 @@ public final class FilmService {
         }
 
         return repository.findById(filmId);
+    }
+
+    public record FilmPage(
+        int page,
+        int per_page,
+        int total,
+        List<Film> films
+    ) {
+        public FilmPage {
+            films = List.copyOf(films);
+        }
     }
 }
