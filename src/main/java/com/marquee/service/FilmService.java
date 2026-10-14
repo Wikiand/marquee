@@ -1,6 +1,7 @@
 package com.marquee.service;
 
 import com.marquee.model.Film;
+import com.marquee.model.FilmInput;
 import com.marquee.repository.FilmRepository;
 
 import java.sql.SQLException;
@@ -52,6 +53,34 @@ public final class FilmService {
         int total = repository.count(genre, year, title);
 
         return new FilmPage(page, perPage, total, films);
+    }
+
+    public Film createFilm(FilmInput input) throws SQLException {
+        if (input == null) {
+            throw new IllegalArgumentException(
+                "Request body is required"
+            );
+        }
+
+        if (input.title() == null || input.title().isBlank()) {
+            throw new IllegalArgumentException(
+                "Title is required and cannot be blank"
+            );
+        }
+
+        if (input.year() == null || input.year() <= 0) {
+            throw new IllegalArgumentException(
+                "Year must be a positive integer"
+            );
+        }
+
+        String title = input.title().trim();
+
+        return repository.create(
+            title,
+            input.year(),
+            input.description()
+        );
     }
 
     public Optional<Film> getFilm(int filmId) throws SQLException {

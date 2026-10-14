@@ -2,6 +2,7 @@ package com.marquee.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marquee.model.Film;
+import com.marquee.model.FilmInput;
 import com.marquee.service.FilmService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -46,7 +47,14 @@ public final class FilmHandler implements HttpHandler {
                     return;
                 }
 
-                if (!exchange.getRequestMethod().equals("GET")) {
+                String method = exchange.getRequestMethod();
+
+                if (method.equals("POST")) {
+                    handleCreate(exchange);
+                    return;
+                }
+
+                if (!method.equals("GET")) {
                     sendError(exchange, 405, "Method not allowed");
                     return;
                 }
@@ -79,6 +87,24 @@ public final class FilmHandler implements HttpHandler {
                 sendError(exchange, 500, "Internal server error");
             }
         }
+    }
+
+    private void handleCreate(HttpExchange exchange)
+            throws IOException, SQLException {
+
+        FilmInput input;
+
+        try {
+            input = mapper.readValue(
+                exchange.getRequestBody(), FilmInput.class
+            );
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            sendError(exchange, 400, "Invalid JSON request body");
+            return;
+        }
+
+        Film created = service.createFilm(input);
+        send(exchange, 201, created);
     }
 
     private void handleFilmById(

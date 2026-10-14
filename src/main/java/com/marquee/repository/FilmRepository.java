@@ -132,6 +132,44 @@ public final class FilmRepository {
         }
     }
 
+    public Film create(
+            String title,
+            int year,
+            String description
+    ) throws SQLException {
+
+        String sql = """
+            INSERT INTO films (title, year, description)
+            VALUES (?, ?, ?)
+            """;
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 sql, java.sql.Statement.RETURN_GENERATED_KEYS
+             )) {
+
+            statement.setString(1, title);
+            statement.setInt(2, year);
+            statement.setString(3, description);
+            statement.executeUpdate();
+
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (keys.next()) {
+                    int filmId = keys.getInt(1);
+                    return findById(filmId).orElseThrow(
+                        () -> new SQLException(
+                            "Created film could not be retrieved"
+                        )
+                    );
+                }
+            }
+
+            throw new SQLException(
+                "Creating film failed: no ID returned"
+            );
+        }
+    }
+
     public Optional<Film> findById(int filmId) throws SQLException {
         String sql = """
             SELECT film_id, title, year, description, created_at
