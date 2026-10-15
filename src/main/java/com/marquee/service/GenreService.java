@@ -19,6 +19,16 @@ public final class GenreService {
         return repository.findAll();
     }
 
+    public java.util.Optional<Genre> findGenreById(
+            int genreId
+    ) throws SQLException {
+        if (genreId <= 0) {
+            throw new IllegalArgumentException("Invalid genre ID");
+        }
+
+        return repository.findById(genreId);
+    }
+
     public Genre createGenre(String name) throws SQLException {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException(

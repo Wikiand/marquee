@@ -37,6 +37,11 @@ public final class GenreHandler implements HttpHandler {
 
                     String suffix = path.substring("/genres/".length());
 
+                    if (method.equals("GET")) {
+                        handleGetById(exchange, suffix);
+                        return;
+                    }
+
                     if (method.equals("DELETE")) {
                         handleDelete(exchange, suffix);
                         return;
@@ -89,6 +94,33 @@ public final class GenreHandler implements HttpHandler {
 
         Genre created = service.createGenre(body.get("name").asText());
         send(exchange, 201, created);
+    }
+
+    private void handleGetById(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+
+        if (suffix.isBlank() || suffix.contains("/")) {
+            sendError(exchange, 404, "Genre not found");
+            return;
+        }
+
+        int genreId;
+        try {
+            genreId = Integer.parseInt(suffix);
+        } catch (NumberFormatException exception) {
+            sendError(exchange, 400, "Invalid genre ID");
+            return;
+        }
+
+        Optional<Genre> genre = service.findGenreById(genreId);
+
+        if (genre.isEmpty()) {
+            sendError(exchange, 404, "Genre not found");
+            return;
+        }
+
+        send(exchange, 200, genre.get());
     }
 
     private void handleUpdate(

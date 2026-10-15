@@ -44,6 +44,30 @@ public final class GenreRepository {
         return List.copyOf(genres);
     }
 
+    public java.util.Optional<Genre> findById(
+            int genreId
+    ) throws SQLException {
+        String sql =
+            "SELECT genre_id, name FROM genres WHERE genre_id = ?";
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, genreId);
+
+            try (ResultSet result = statement.executeQuery()) {
+                if (result.next()) {
+                    return java.util.Optional.of(new Genre(
+                        result.getInt("genre_id"),
+                        result.getString("name")
+                    ));
+                }
+            }
+        }
+
+        return java.util.Optional.empty();
+    }
+
     public Genre create(String name) throws SQLException {
         String sql = "INSERT INTO genres (name) VALUES (?)";
 
