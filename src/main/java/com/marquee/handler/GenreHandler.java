@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.Optional;
 
 public final class GenreHandler implements HttpHandler {
 
@@ -24,39 +25,55 @@ public final class GenreHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
-            String method = exchange.getRequestMethod();
-
-            if (method.equals("POST")) {
-                handleCreate(exchange);
-                return;
-            }
-
-            if (!method.equals("GET")) {
-                sendError(exchange, 405, "Method not allowed");
-                return;
-            }
-
             try {
+                String path = exchange.getRequestURI().getPath();
+                String method = exchange.getRequestMethod();
+
+                if (!path.equals("/genres") && !path.equals("/genres/")) {
+                    if (!path.startsWith("/genres/")) {
+                        sendError(exchange, 404, "Route not found");
+                        return;
+                    }
+
+                    String suffix = path.substring("/genres/".length());
+
+                    if (!method.equals("PUT")) {
+                        sendError(exchange, 405, "Method not allowed");
+                        return;
+                    }
+
+                    handleUpdate(exchange, suffix);
+                    return;
+                }
+
+                if (method.equals("POST")) {
+                    handleCreate(exchange);
+                    return;
+                }
+
+                if (!method.equals("GET")) {
+                    sendError(exchange, 405, "Method not allowed");
+                    return;
+                }
+
                 send(exchange, 200, service.listGenres());
+
+            } catch (IllegalArgumentException exception) {
+                sendError(exchange, 400, exception.getMessage());
             } catch (SQLException exception) {
-                sendError(exchange, 500, "Database operation failed");
-            }
-        } catch (Exception exception) {
-            if (!exchange.getResponseHeaders().containsKey("Content-Type")) {
+                if (isDuplicateGenre(exception)) {
+                    sendError(exchange, 409, "Genre name already exists");
+                } else {
+                    sendError(exchange, 500, "Database operation failed");
+                }
+            } catch (Exception exception) {
                 sendError(exchange, 500, "Internal server error");
             }
         }
     }
 
-    private void handleCreate(HttpExchange exchange) throws IOException {
-        JsonNode body;
-
-        try {
-            body = mapper.readTree(exchange.getRequestBody());
-        } catch (JsonProcessingException exception) {
-            sendError(exchange, 400, "Invalid JSON request body");
-            return;
-        }
+    private void handleCreate(HttpExchange exchange) throws IOException, SQLException {
+        JsonNode body = readBody(exchange);
 
         if (body == null || !body.isObject()
                 || !body.has("name")
@@ -65,21 +82,60 @@ public final class GenreHandler implements HttpHandler {
             return;
         }
 
-        try {
-            Genre created = service.createGenre(body.get("name").asText());
-            send(exchange, 201, created);
-        } catch (IllegalArgumentException exception) {
-            sendError(exchange, 400, exception.getMessage());
-        } catch (SQLException exception) {
-            String message = exception.getMessage();
+        Genre created = service.createGenre(body.get("name").asText());
+        send(exchange, 201, created);
+    }
 
-            if (message != null
-                    && message.contains("UNIQUE constraint failed: genres.name")) {
-                sendError(exchange, 409, "Genre name already exists");
-            } else {
-                sendError(exchange, 500, "Database operation failed");
-            }
+    private void handleUpdate(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+
+        if (suffix.isBlank() || suffix.contains("/")) {
+            sendError(exchange, 404, "Genre not found");
+            return;
         }
+
+        int genreId;
+        try {
+            genreId = Integer.parseInt(suffix);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Invalid genre ID");
+        }
+
+        JsonNode body = readBody(exchange);
+
+        if (body == null || !body.isObject()
+                || !body.has("name")
+                || !body.get("name").isTextual()) {
+            sendError(exchange, 400, "Genre name must be a string");
+            return;
+        }
+
+        Optional<Genre> updated = service.updateGenre(
+            genreId, body.get("name").asText()
+        );
+
+        if (updated.isEmpty()) {
+            sendError(exchange, 404, "Genre not found");
+            return;
+        }
+
+        send(exchange, 200, updated.get());
+    }
+
+    private JsonNode readBody(HttpExchange exchange) throws IOException {
+        try {
+            return mapper.readTree(exchange.getRequestBody());
+        } catch (JsonProcessingException exception) {
+            sendError(exchange, 400, "Invalid JSON request body");
+            return null;
+        }
+    }
+
+    private boolean isDuplicateGenre(SQLException exception) {
+        String message = exception.getMessage();
+        return message != null
+            && message.contains("UNIQUE constraint failed: genres.name");
     }
 
     private void sendError(

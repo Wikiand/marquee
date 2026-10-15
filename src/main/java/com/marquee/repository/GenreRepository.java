@@ -66,4 +66,44 @@ public final class GenreRepository {
             );
         }
     }
+
+    public java.util.Optional<Genre> update(
+            int genreId, String name
+    ) throws SQLException {
+        String sql = "UPDATE genres SET name = ? WHERE genre_id = ?";
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, name);
+            statement.setInt(2, genreId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                return java.util.Optional.empty();
+            }
+        }
+
+        String selectSql =
+            "SELECT genre_id, name FROM genres WHERE genre_id = ?";
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement =
+                     connection.prepareStatement(selectSql)) {
+
+            statement.setInt(1, genreId);
+
+            try (ResultSet result = statement.executeQuery()) {
+                if (result.next()) {
+                    return java.util.Optional.of(new Genre(
+                        result.getInt("genre_id"),
+                        result.getString("name")
+                    ));
+                }
+            }
+        }
+
+        return java.util.Optional.empty();
+    }
 }
