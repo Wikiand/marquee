@@ -46,4 +46,14 @@ public final class GenreService {
 
         return repository.update(genreId, name.trim());
     }
+
+    public boolean deleteGenre(int genreId) throws SQLException {
+        if (genreId <= 0) {
+            throw new IllegalArgumentException(
+                "Genre ID must be a positive integer"
+            );
+        }
+
+        return repository.delete(genreId);
+    }
 }

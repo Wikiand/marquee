@@ -37,12 +37,17 @@ public final class GenreHandler implements HttpHandler {
 
                     String suffix = path.substring("/genres/".length());
 
-                    if (!method.equals("PUT")) {
-                        sendError(exchange, 405, "Method not allowed");
+                    if (method.equals("DELETE")) {
+                        handleDelete(exchange, suffix);
                         return;
                     }
 
-                    handleUpdate(exchange, suffix);
+                    if (method.equals("PUT")) {
+                        handleUpdate(exchange, suffix);
+                        return;
+                    }
+
+                    sendError(exchange, 405, "Method not allowed");
                     return;
                 }
 
@@ -121,6 +126,32 @@ public final class GenreHandler implements HttpHandler {
         }
 
         send(exchange, 200, updated.get());
+    }
+
+
+    private void handleDelete(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+
+        if (suffix.isBlank() || suffix.contains("/")) {
+            sendError(exchange, 404, "Genre not found");
+            return;
+        }
+
+        int genreId;
+        try {
+            genreId = Integer.parseInt(suffix);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Invalid genre ID");
+        }
+
+        if (!service.deleteGenre(genreId)) {
+            sendError(exchange, 404, "Genre not found");
+            return;
+        }
+
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.sendResponseHeaders(204, -1);
     }
 
     private JsonNode readBody(HttpExchange exchange) throws IOException {

@@ -106,4 +106,15 @@ public final class GenreRepository {
 
         return java.util.Optional.empty();
     }
+
+    public boolean delete(int genreId) throws SQLException {
+        String sql = "DELETE FROM genres WHERE genre_id = ?";
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, genreId);
+            return statement.executeUpdate() > 0;
+        }
+    }
 }
