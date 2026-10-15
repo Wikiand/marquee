@@ -62,6 +62,16 @@ public final class Main {
             new com.marquee.handler.FilmHandler(filmService)
         );
 
+        var genreRepository =
+            new com.marquee.repository.GenreRepository(database);
+        var genreService =
+            new com.marquee.service.GenreService(genreRepository);
+
+        server.createContext(
+            "/genres",
+            new com.marquee.handler.GenreHandler(genreService)
+        );
+
         server.createContext("/", exchange -> {
             try {
                 sendJson(exchange, 404,
