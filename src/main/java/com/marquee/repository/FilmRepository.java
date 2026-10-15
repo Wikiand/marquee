@@ -274,4 +274,15 @@ public final class FilmRepository {
             genres
         );
     }
+
+    public boolean delete(int filmId) throws SQLException {
+        String sql = "DELETE FROM films WHERE film_id = ?";
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, filmId);
+            return statement.executeUpdate() > 0;
+        }
+    }
 }

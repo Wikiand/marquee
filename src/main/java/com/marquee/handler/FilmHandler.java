@@ -44,6 +44,11 @@ public final class FilmHandler implements HttpHandler {
                         return;
                     }
 
+                    if (method.equals("DELETE")) {
+                        handleDelete(exchange, suffix);
+                        return;
+                    }
+
                     if (!method.equals("GET")) {
                         sendError(exchange, 405, "Method not allowed");
                         return;
@@ -142,6 +147,26 @@ public final class FilmHandler implements HttpHandler {
         }
 
         send(exchange, 200, updated.get());
+    }
+
+    private void handleDelete(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+
+        if (suffix.isBlank() || suffix.contains("/")) {
+            sendError(exchange, 404, "Film not found");
+            return;
+        }
+
+        int filmId = parseInteger(suffix, "film ID");
+
+        if (!service.deleteFilm(filmId)) {
+            sendError(exchange, 404, "Film not found");
+            return;
+        }
+
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.sendResponseHeaders(204, -1);
     }
 
     private void handleFilmById(

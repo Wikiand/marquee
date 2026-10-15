@@ -120,6 +120,16 @@ public final class FilmService {
         );
     }
 
+    public boolean deleteFilm(int filmId) throws SQLException {
+        if (filmId <= 0) {
+            throw new IllegalArgumentException(
+                "Film ID must be a positive integer"
+            );
+        }
+
+        return repository.delete(filmId);
+    }
+
     public Optional<Film> getFilm(int filmId) throws SQLException {
         if (filmId <= 0) {
             throw new IllegalArgumentException(
