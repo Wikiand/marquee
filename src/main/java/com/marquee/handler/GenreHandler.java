@@ -1,6 +1,9 @@
 package com.marquee.handler;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.marquee.model.Genre;
 import com.marquee.service.GenreService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -21,18 +24,60 @@ public final class GenreHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
-            if (!exchange.getRequestMethod().equals("GET")) {
+            String method = exchange.getRequestMethod();
+
+            if (method.equals("POST")) {
+                handleCreate(exchange);
+                return;
+            }
+
+            if (!method.equals("GET")) {
                 sendError(exchange, 405, "Method not allowed");
                 return;
             }
 
             try {
-                var genres = service.listGenres();
-                send(exchange, 200, genres);
+                send(exchange, 200, service.listGenres());
             } catch (SQLException exception) {
                 sendError(exchange, 500, "Database operation failed");
-            } catch (Exception exception) {
+            }
+        } catch (Exception exception) {
+            if (!exchange.getResponseHeaders().containsKey("Content-Type")) {
                 sendError(exchange, 500, "Internal server error");
+            }
+        }
+    }
+
+    private void handleCreate(HttpExchange exchange) throws IOException {
+        JsonNode body;
+
+        try {
+            body = mapper.readTree(exchange.getRequestBody());
+        } catch (JsonProcessingException exception) {
+            sendError(exchange, 400, "Invalid JSON request body");
+            return;
+        }
+
+        if (body == null || !body.isObject()
+                || !body.has("name")
+                || !body.get("name").isTextual()) {
+            sendError(exchange, 400, "Genre name must be a string");
+            return;
+        }
+
+        try {
+            Genre created = service.createGenre(body.get("name").asText());
+            send(exchange, 201, created);
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 400, exception.getMessage());
+        } catch (SQLException exception) {
+            String message = exception.getMessage();
+
+            if (message != null
+                    && message.contains("UNIQUE constraint failed: genres.name")) {
+                sendError(exchange, 409, "Genre name already exists");
+            } else {
+                sendError(exchange, 500, "Database operation failed");
             }
         }
     }

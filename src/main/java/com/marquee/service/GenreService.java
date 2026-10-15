@@ -17,4 +17,14 @@ public final class GenreService {
     public List<Genre> listGenres() throws SQLException {
         return repository.findAll();
     }
+
+    public Genre createGenre(String name) throws SQLException {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException(
+                "Genre name is required and cannot be blank"
+            );
+        }
+
+        return repository.create(name.trim());
+    }
 }
