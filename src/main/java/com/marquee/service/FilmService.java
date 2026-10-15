@@ -83,6 +83,43 @@ public final class FilmService {
         );
     }
 
+    public Optional<Film> updateFilm(
+            int filmId,
+            FilmInput input
+    ) throws SQLException {
+
+        if (filmId <= 0) {
+            throw new IllegalArgumentException(
+                "Film ID must be a positive integer"
+            );
+        }
+
+        if (input == null) {
+            throw new IllegalArgumentException(
+                "Request body is required"
+            );
+        }
+
+        if (input.title() == null || input.title().isBlank()) {
+            throw new IllegalArgumentException(
+                "Title is required and cannot be blank"
+            );
+        }
+
+        if (input.year() == null || input.year() <= 0) {
+            throw new IllegalArgumentException(
+                "Year must be a positive integer"
+            );
+        }
+
+        return repository.update(
+            filmId,
+            input.title().trim(),
+            input.year(),
+            input.description()
+        );
+    }
+
     public Optional<Film> getFilm(int filmId) throws SQLException {
         if (filmId <= 0) {
             throw new IllegalArgumentException(

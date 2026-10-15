@@ -170,6 +170,37 @@ public final class FilmRepository {
         }
     }
 
+    public Optional<Film> update(
+            int filmId,
+            String title,
+            int year,
+            String description
+    ) throws SQLException {
+
+        String sql = """
+            UPDATE films
+            SET title = ?, year = ?, description = ?
+            WHERE film_id = ?
+            """;
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, title);
+            statement.setInt(2, year);
+            statement.setString(3, description);
+            statement.setInt(4, filmId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                return Optional.empty();
+            }
+        }
+
+        return findById(filmId);
+    }
+
     public Optional<Film> findById(int filmId) throws SQLException {
         String sql = """
             SELECT film_id, title, year, description, created_at

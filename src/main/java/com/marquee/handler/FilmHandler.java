@@ -36,14 +36,20 @@ public final class FilmHandler implements HttpHandler {
                         return;
                     }
 
-                    if (!exchange.getRequestMethod().equals("GET")) {
+                    String method = exchange.getRequestMethod();
+                    String suffix = path.substring("/films/".length());
+
+                    if (method.equals("PUT")) {
+                        handleUpdate(exchange, suffix);
+                        return;
+                    }
+
+                    if (!method.equals("GET")) {
                         sendError(exchange, 405, "Method not allowed");
                         return;
                     }
 
-                    handleFilmById(
-                        exchange, path.substring("/films/".length())
-                    );
+                    handleFilmById(exchange, suffix);
                     return;
                 }
 
@@ -105,6 +111,37 @@ public final class FilmHandler implements HttpHandler {
 
         Film created = service.createFilm(input);
         send(exchange, 201, created);
+    }
+
+    private void handleUpdate(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+
+        if (suffix.isBlank() || suffix.contains("/")) {
+            sendError(exchange, 404, "Film not found");
+            return;
+        }
+
+        int filmId = parseInteger(suffix, "film ID");
+        FilmInput input;
+
+        try {
+            input = mapper.readValue(
+                exchange.getRequestBody(), FilmInput.class
+            );
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            sendError(exchange, 400, "Invalid JSON request body");
+            return;
+        }
+
+        Optional<Film> updated = service.updateFilm(filmId, input);
+
+        if (updated.isEmpty()) {
+            sendError(exchange, 404, "Film not found");
+            return;
+        }
+
+        send(exchange, 200, updated.get());
     }
 
     private void handleFilmById(
