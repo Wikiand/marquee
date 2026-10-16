@@ -82,7 +82,9 @@ public final class GenreHandler implements HttpHandler {
         }
     }
 
-    private void handleCreate(HttpExchange exchange) throws IOException, SQLException {
+    private void handleCreate(
+            HttpExchange exchange
+    ) throws IOException, SQLException {
         JsonNode body = readBody(exchange);
 
         if (body == null || !body.isObject()
@@ -99,19 +101,7 @@ public final class GenreHandler implements HttpHandler {
     private void handleGetById(
             HttpExchange exchange, String suffix
     ) throws IOException, SQLException {
-
-        if (suffix.isBlank() || suffix.contains("/")) {
-            sendError(exchange, 404, "Genre not found");
-            return;
-        }
-
-        int genreId;
-        try {
-            genreId = Integer.parseInt(suffix);
-        } catch (NumberFormatException exception) {
-            sendError(exchange, 400, "Invalid genre ID");
-            return;
-        }
+        int genreId = parseGenreId(suffix);
 
         Optional<Genre> genre = service.findGenreById(genreId);
 
@@ -126,19 +116,7 @@ public final class GenreHandler implements HttpHandler {
     private void handleUpdate(
             HttpExchange exchange, String suffix
     ) throws IOException, SQLException {
-
-        if (suffix.isBlank() || suffix.contains("/")) {
-            sendError(exchange, 404, "Genre not found");
-            return;
-        }
-
-        int genreId;
-        try {
-            genreId = Integer.parseInt(suffix);
-        } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("Invalid genre ID");
-        }
-
+        int genreId = parseGenreId(suffix);
         JsonNode body = readBody(exchange);
 
         if (body == null || !body.isObject()
@@ -160,22 +138,10 @@ public final class GenreHandler implements HttpHandler {
         send(exchange, 200, updated.get());
     }
 
-
     private void handleDelete(
             HttpExchange exchange, String suffix
     ) throws IOException, SQLException {
-
-        if (suffix.isBlank() || suffix.contains("/")) {
-            sendError(exchange, 404, "Genre not found");
-            return;
-        }
-
-        int genreId;
-        try {
-            genreId = Integer.parseInt(suffix);
-        } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("Invalid genre ID");
-        }
+        int genreId = parseGenreId(suffix);
 
         if (!service.deleteGenre(genreId)) {
             sendError(exchange, 404, "Genre not found");
@@ -184,6 +150,25 @@ public final class GenreHandler implements HttpHandler {
 
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(204, -1);
+    }
+
+    private int parseGenreId(String suffix) {
+        if (suffix == null || suffix.isBlank() || suffix.contains("/")) {
+            throw new IllegalArgumentException("Invalid genre ID");
+        }
+
+        final int genreId;
+        try {
+            genreId = Integer.parseInt(suffix);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Invalid genre ID");
+        }
+
+        if (genreId <= 0) {
+            throw new IllegalArgumentException("Invalid genre ID");
+        }
+
+        return genreId;
     }
 
     private JsonNode readBody(HttpExchange exchange) throws IOException {

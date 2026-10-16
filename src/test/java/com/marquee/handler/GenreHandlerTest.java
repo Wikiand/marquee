@@ -36,9 +36,13 @@ class GenreHandlerTest {
         Database database = new Database(tempDir.resolve("genres.db"));
         database.initialize();
 
-        GenreService service = new GenreService(new GenreRepository(database));
+        GenreService service = new GenreService(
+            new GenreRepository(database)
+        );
 
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server = HttpServer.create(
+            new InetSocketAddress("127.0.0.1", 0), 0
+        );
         server.createContext("/genres", new GenreHandler(service));
         server.setExecutor(Executors.newFixedThreadPool(2));
         server.start();
@@ -69,12 +73,15 @@ class GenreHandlerTest {
     @Test
     void listGenresReturnsCreatedGenres() throws Exception {
         request("POST", "/genres", "{\"name\":\"Comedy\"}");
+
         HttpResponse<String> response = request("GET", "/genres", null);
 
         assertEquals(200, response.statusCode());
         assertTrue(json(response).isArray());
         assertEquals(1, json(response).size());
-        assertEquals("Comedy", json(response).get(0).get("name").asText());
+        assertEquals(
+            "Comedy", json(response).get(0).get("name").asText()
+        );
     }
 
     @Test
@@ -84,7 +91,10 @@ class GenreHandlerTest {
         ));
 
         int id = created.get("genreId").asInt();
-        HttpResponse<String> response = request("GET", "/genres/" + id, null);
+
+        HttpResponse<String> response = request(
+            "GET", "/genres/" + id, null
+        );
 
         assertEquals(200, response.statusCode());
         assertEquals("Drama", json(response).get("name").asText());
@@ -92,10 +102,30 @@ class GenreHandlerTest {
 
     @Test
     void getGenreByIdReturns404WhenMissing() throws Exception {
-        HttpResponse<String> response = request("GET", "/genres/9999", null);
+        HttpResponse<String> response = request(
+            "GET", "/genres/9999", null
+        );
 
         assertEquals(404, response.statusCode());
-        assertEquals(404, json(response).get("error").get("code").asInt());
+        assertEquals(
+            404, json(response).get("error").get("code").asInt()
+        );
+    }
+
+    @Test
+    void getGenreByIdRejectsMalformedId() throws Exception {
+        assertInvalidIdResponse(request("GET", "/genres/abc", null));
+    }
+
+    @Test
+    void getGenreByIdRejectsZeroAndNegativeIds() throws Exception {
+        for (String id : new String[]{"0", "-1"}) {
+            HttpResponse<String> response = request(
+                "GET", "/genres/" + id, null
+            );
+
+            assertEquals(400, response.statusCode(), "ID: " + id);
+        }
     }
 
     @Test
@@ -119,6 +149,7 @@ class GenreHandlerTest {
     @Test
     void createGenreRejectsDuplicateName() throws Exception {
         request("POST", "/genres", "{\"name\":\"Comedy\"}");
+
         HttpResponse<String> response = request(
             "POST", "/genres", "{\"name\":\"Comedy\"}"
         );
@@ -135,6 +166,7 @@ class GenreHandlerTest {
         JsonNode created = json(request(
             "POST", "/genres", "{\"name\":\"Comedy\"}"
         ));
+
         int id = created.get("genreId").asInt();
 
         HttpResponse<String> response = request(
@@ -155,14 +187,37 @@ class GenreHandlerTest {
     }
 
     @Test
+    void updateGenreRejectsMalformedId() throws Exception {
+        assertInvalidIdResponse(request(
+            "PUT", "/genres/abc", "{\"name\":\"Comedy\"}"
+        ));
+    }
+
+    @Test
+    void updateGenreRejectsZeroAndNegativeIds() throws Exception {
+        for (String id : new String[]{"0", "-1"}) {
+            HttpResponse<String> response = request(
+                "PUT", "/genres/" + id, "{\"name\":\"Comedy\"}"
+            );
+
+            assertEquals(400, response.statusCode(), "ID: " + id);
+        }
+    }
+
+    @Test
     void deleteGenreReturns204AndRemovesGenre() throws Exception {
         JsonNode created = json(request(
             "POST", "/genres", "{\"name\":\"Thriller\"}"
         ));
+
         int id = created.get("genreId").asInt();
 
-        HttpResponse<String> deleted = request("DELETE", "/genres/" + id, null);
-        HttpResponse<String> fetched = request("GET", "/genres/" + id, null);
+        HttpResponse<String> deleted = request(
+            "DELETE", "/genres/" + id, null
+        );
+        HttpResponse<String> fetched = request(
+            "GET", "/genres/" + id, null
+        );
 
         assertEquals(204, deleted.statusCode());
         assertTrue(deleted.body().isEmpty());
@@ -171,16 +226,48 @@ class GenreHandlerTest {
 
     @Test
     void deleteMissingGenreReturns404() throws Exception {
-        HttpResponse<String> response = request("DELETE", "/genres/9999", null);
+        HttpResponse<String> response = request(
+            "DELETE", "/genres/9999", null
+        );
 
         assertEquals(404, response.statusCode());
     }
 
     @Test
+    void deleteGenreRejectsMalformedId() throws Exception {
+        assertInvalidIdResponse(request(
+            "DELETE", "/genres/abc", null
+        ));
+    }
+
+    @Test
+    void deleteGenreRejectsZeroAndNegativeIds() throws Exception {
+        for (String id : new String[]{"0", "-1"}) {
+            HttpResponse<String> response = request(
+                "DELETE", "/genres/" + id, null
+            );
+
+            assertEquals(400, response.statusCode(), "ID: " + id);
+        }
+    }
+
+    @Test
     void unsupportedMethodReturns405() throws Exception {
-        HttpResponse<String> response = request("PATCH", "/genres", "{}");
+        HttpResponse<String> response = request(
+            "PATCH", "/genres", "{}"
+        );
 
         assertEquals(405, response.statusCode());
+    }
+
+    private void assertInvalidIdResponse(
+            HttpResponse<String> response
+    ) throws Exception {
+        assertEquals(400, response.statusCode());
+        assertEquals(
+            "Invalid genre ID",
+            json(response).get("error").get("message").asText()
+        );
     }
 
     private HttpResponse<String> request(
@@ -203,7 +290,8 @@ class GenreHandlerTest {
         );
     }
 
-    private JsonNode json(HttpResponse<String> response) throws Exception {
+    private JsonNode json(HttpResponse<String> response)
+            throws Exception {
         return mapper.readTree(response.body());
     }
 }
