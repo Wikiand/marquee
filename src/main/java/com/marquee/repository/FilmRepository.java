@@ -8,6 +8,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -60,7 +61,6 @@ public final class FilmRepository {
         }
 
         sql.append(" ORDER BY f.film_id LIMIT ? OFFSET ?");
-
         parameters.add(perPage);
         parameters.add((page - 1) * perPage);
 
@@ -135,7 +135,8 @@ public final class FilmRepository {
     public Film create(
             String title,
             int year,
-            String description
+            String description,
+            List<Integer> genreIds
     ) throws SQLException {
 
         String sql = """
@@ -143,30 +144,48 @@ public final class FilmRepository {
             VALUES (?, ?, ?)
             """;
 
-        try (Connection connection = database.getConnection();
-             PreparedStatement statement = connection.prepareStatement(
-                 sql, java.sql.Statement.RETURN_GENERATED_KEYS
-             )) {
+        try (Connection connection = database.getConnection()) {
+            connection.setAutoCommit(false);
 
-            statement.setString(1, title);
-            statement.setInt(2, year);
-            statement.setString(3, description);
-            statement.executeUpdate();
+            try {
+                int filmId;
 
-            try (ResultSet keys = statement.getGeneratedKeys()) {
-                if (keys.next()) {
-                    int filmId = keys.getInt(1);
-                    return findById(filmId).orElseThrow(
-                        () -> new SQLException(
-                            "Created film could not be retrieved"
-                        )
-                    );
+                try (PreparedStatement statement =
+                        connection.prepareStatement(
+                            sql, Statement.RETURN_GENERATED_KEYS)) {
+
+                    statement.setString(1, title);
+                    statement.setInt(2, year);
+                    statement.setString(3, description);
+                    statement.executeUpdate();
+
+                    try (ResultSet keys = statement.getGeneratedKeys()) {
+                        if (!keys.next()) {
+                            throw new SQLException(
+                                "Creating film failed: no ID returned"
+                            );
+                        }
+                        filmId = keys.getInt(1);
+                    }
                 }
-            }
 
-            throw new SQLException(
-                "Creating film failed: no ID returned"
-            );
+                if (genreIds != null) {
+                    replaceGenres(connection, filmId, genreIds);
+                }
+
+                Film film = findById(connection, filmId).orElseThrow(
+                    () -> new SQLException(
+                        "Created film could not be retrieved"
+                    )
+                );
+
+                connection.commit();
+                return film;
+
+            } catch (SQLException | RuntimeException exception) {
+                connection.rollback();
+                throw exception;
+            }
         }
     }
 
@@ -174,7 +193,8 @@ public final class FilmRepository {
             int filmId,
             String title,
             int year,
-            String description
+            String description,
+            List<Integer> genreIds
     ) throws SQLException {
 
         String sql = """
@@ -183,33 +203,66 @@ public final class FilmRepository {
             WHERE film_id = ?
             """;
 
-        try (Connection connection = database.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection connection = database.getConnection()) {
+            connection.setAutoCommit(false);
 
-            statement.setString(1, title);
-            statement.setInt(2, year);
-            statement.setString(3, description);
-            statement.setInt(4, filmId);
+            try {
+                int affectedRows;
 
-            int affectedRows = statement.executeUpdate();
+                try (PreparedStatement statement =
+                        connection.prepareStatement(sql)) {
 
-            if (affectedRows == 0) {
-                return Optional.empty();
+                    statement.setString(1, title);
+                    statement.setInt(2, year);
+                    statement.setString(3, description);
+                    statement.setInt(4, filmId);
+                    affectedRows = statement.executeUpdate();
+                }
+
+                if (affectedRows == 0) {
+                    connection.rollback();
+                    return Optional.empty();
+                }
+
+                if (genreIds != null) {
+                    replaceGenres(connection, filmId, genreIds);
+                }
+
+                Film film = findById(connection, filmId).orElseThrow(
+                    () -> new SQLException(
+                        "Updated film could not be retrieved"
+                    )
+                );
+
+                connection.commit();
+                return Optional.of(film);
+
+            } catch (SQLException | RuntimeException exception) {
+                connection.rollback();
+                throw exception;
             }
         }
-
-        return findById(filmId);
     }
 
     public Optional<Film> findById(int filmId) throws SQLException {
+        try (Connection connection = database.getConnection()) {
+            return findById(connection, filmId);
+        }
+    }
+
+    private Optional<Film> findById(
+            Connection connection,
+            int filmId
+    ) throws SQLException {
+
         String sql = """
             SELECT film_id, title, year, description, created_at
             FROM films
             WHERE film_id = ?
             """;
 
-        try (Connection connection = database.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement =
+                connection.prepareStatement(sql)) {
 
             statement.setInt(1, filmId);
 
@@ -219,6 +272,77 @@ public final class FilmRepository {
                 }
 
                 return Optional.of(mapFilm(connection, result, true));
+            }
+        }
+    }
+
+    private void replaceGenres(
+            Connection connection,
+            int filmId,
+            List<Integer> genreIds
+    ) throws SQLException {
+
+        List<Integer> validatedIds = new ArrayList<>();
+
+        for (Integer genreId : genreIds) {
+            if (genreId == null || genreId <= 0) {
+                throw new IllegalArgumentException(
+                    "Genre IDs must be positive integers"
+                );
+            }
+
+            if (validatedIds.contains(genreId)) {
+                throw new IllegalArgumentException(
+                    "Duplicate genre ID: " + genreId
+                );
+            }
+
+            validatedIds.add(genreId);
+        }
+
+        for (Integer genreId : validatedIds) {
+            if (!genreExists(connection, genreId)) {
+                throw new IllegalArgumentException(
+                    "Genre not found: " + genreId
+                );
+            }
+        }
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM film_genres WHERE film_id = ?")) {
+
+            statement.setInt(1, filmId);
+            statement.executeUpdate();
+        }
+
+        String sql = """
+            INSERT INTO film_genres (film_id, genre_id)
+            VALUES (?, ?)
+            """;
+
+        try (PreparedStatement statement =
+                connection.prepareStatement(sql)) {
+
+            for (Integer genreId : validatedIds) {
+                statement.setInt(1, filmId);
+                statement.setInt(2, genreId);
+                statement.executeUpdate();
+            }
+        }
+    }
+
+    private boolean genreExists(
+            Connection connection,
+            int genreId
+    ) throws SQLException {
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT 1 FROM genres WHERE genre_id = ?")) {
+
+            statement.setInt(1, genreId);
+
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next();
             }
         }
     }
@@ -251,7 +375,7 @@ public final class FilmRepository {
             """;
 
         try (PreparedStatement statement =
-                     connection.prepareStatement(genreSql)) {
+                connection.prepareStatement(genreSql)) {
 
             statement.setInt(1, filmId);
 

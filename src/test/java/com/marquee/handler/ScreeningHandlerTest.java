@@ -38,7 +38,7 @@ class ScreeningHandlerTest {
         database.initialize();
 
         new FilmRepository(database).create(
-            "Test Film", 2025, "Film for screening tests"
+            "Test Film", 2025, "Film for screening tests", null
         );
 
         ScreeningService service =

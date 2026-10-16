@@ -21,7 +21,7 @@ class ScreeningServiceTest {
 
         FilmRepository filmRepository = new FilmRepository(database);
         filmRepository.create(
-            "Test Film", 2025, "A film for screening tests"
+            "Test Film", 2025, "A film for screening tests", null
         );
 
         return new ScreeningService(new ScreeningRepository(database));

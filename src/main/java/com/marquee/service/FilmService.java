@@ -5,8 +5,10 @@ import com.marquee.model.FilmInput;
 import com.marquee.repository.FilmRepository;
 
 import java.sql.SQLException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public final class FilmService {
 
@@ -56,30 +58,14 @@ public final class FilmService {
     }
 
     public Film createFilm(FilmInput input) throws SQLException {
-        if (input == null) {
-            throw new IllegalArgumentException(
-                "Request body is required"
-            );
-        }
-
-        if (input.title() == null || input.title().isBlank()) {
-            throw new IllegalArgumentException(
-                "Title is required and cannot be blank"
-            );
-        }
-
-        if (input.year() == null || input.year() <= 0) {
-            throw new IllegalArgumentException(
-                "Year must be a positive integer"
-            );
-        }
-
-        String title = input.title().trim();
+        validateFilmInput(input);
+        validateGenreIds(input.genreIds());
 
         return repository.create(
-            title,
+            input.title().trim(),
             input.year(),
-            input.description()
+            input.description(),
+            input.genreIds()
         );
     }
 
@@ -94,6 +80,19 @@ public final class FilmService {
             );
         }
 
+        validateFilmInput(input);
+        validateGenreIds(input.genreIds());
+
+        return repository.update(
+            filmId,
+            input.title().trim(),
+            input.year(),
+            input.description(),
+            input.genreIds()
+        );
+    }
+
+    private void validateFilmInput(FilmInput input) {
         if (input == null) {
             throw new IllegalArgumentException(
                 "Request body is required"
@@ -111,13 +110,28 @@ public final class FilmService {
                 "Year must be a positive integer"
             );
         }
+    }
 
-        return repository.update(
-            filmId,
-            input.title().trim(),
-            input.year(),
-            input.description()
-        );
+    private void validateGenreIds(List<Integer> genreIds) {
+        if (genreIds == null) {
+            return;
+        }
+
+        Set<Integer> seen = new HashSet<>();
+
+        for (Integer genreId : genreIds) {
+            if (genreId == null || genreId <= 0) {
+                throw new IllegalArgumentException(
+                    "Genre IDs must be positive integers"
+                );
+            }
+
+            if (!seen.add(genreId)) {
+                throw new IllegalArgumentException(
+                    "Duplicate genre ID: " + genreId
+                );
+            }
+        }
     }
 
     public boolean deleteFilm(int filmId) throws SQLException {
