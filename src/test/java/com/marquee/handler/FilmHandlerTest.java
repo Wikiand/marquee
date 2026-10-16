@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marquee.database.Database;
 import com.marquee.repository.FilmRepository;
+import com.marquee.repository.GenreRepository;
 import com.marquee.service.FilmService;
+import com.marquee.service.GenreService;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +28,7 @@ class FilmHandlerTest {
     @TempDir
     Path tempDir;
 
+    private Database database;
     private HttpServer server;
     private HttpClient client;
     private ObjectMapper mapper;
@@ -33,7 +36,7 @@ class FilmHandlerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        Database database = new Database(tempDir.resolve("films.db"));
+        database = new Database(tempDir.resolve("films.db"));
         database.initialize();
 
         FilmService service = new FilmService(new FilmRepository(database));
@@ -250,6 +253,115 @@ class FilmHandlerTest {
 
         assertEquals(201, response.statusCode());
         return json(response);
+    }
+
+
+    @Test
+    void createFilmWithGenresReturnsAssignedGenres() throws Exception {
+        GenreService genres = new GenreService(new GenreRepository(database));
+        var sciFi = genres.createGenre("Sci-Fi");
+        var drama = genres.createGenre("Drama");
+
+        HttpResponse<String> response = request(
+            "POST", "/films",
+            """
+            {"title":"Arrival","year":2016,"genreIds":[%d,%d]}
+            """.formatted(sciFi.genreId(), drama.genreId())
+        );
+
+        assertEquals(201, response.statusCode());
+        JsonNode film = json(response);
+        assertEquals(2, film.get("genres").size());
+        assertTrue(hasGenre(film, sciFi.genreId(), "Sci-Fi"));
+        assertTrue(hasGenre(film, drama.genreId(), "Drama"));
+    }
+
+    @Test
+    void createFilmWithNonexistentGenreReturnsBadRequest()
+            throws Exception {
+        HttpResponse<String> response = request(
+            "POST", "/films",
+            """
+            {"title":"Unknown Genre","year":2024,"genreIds":[99999]}
+            """
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void createFilmWithDuplicateGenreIdsReturnsBadRequest()
+            throws Exception {
+        GenreService genres = new GenreService(new GenreRepository(database));
+        var genre = genres.createGenre("Thriller");
+
+        HttpResponse<String> response = request(
+            "POST", "/films",
+            """
+            {"title":"Duplicate Genre","year":2024,"genreIds":[%d,%d]}
+            """.formatted(genre.genreId(), genre.genreId())
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void updateFilmCanReplaceAndClearGenres() throws Exception {
+        GenreService genres = new GenreService(new GenreRepository(database));
+        var action = genres.createGenre("Action");
+        var comedy = genres.createGenre("Comedy");
+        var drama = genres.createGenre("Drama");
+
+        JsonNode created = createFilm("Genre Update", 2024);
+        int filmId = created.get("filmId").asInt();
+
+        HttpResponse<String> assignedResponse = request(
+            "PUT", "/films/" + filmId,
+            """
+            {"title":"Genre Update","year":2024,"genreIds":[%d,%d]}
+            """.formatted(action.genreId(), comedy.genreId())
+        );
+        assertEquals(200, assignedResponse.statusCode());
+        JsonNode assigned = json(assignedResponse);
+        assertTrue(hasGenre(assigned, action.genreId(), "Action"));
+        assertTrue(hasGenre(assigned, comedy.genreId(), "Comedy"));
+
+        HttpResponse<String> replacedResponse = request(
+            "PUT", "/films/" + filmId,
+            """
+            {"title":"Genre Update","year":2024,"genreIds":[%d]}
+            """.formatted(drama.genreId())
+        );
+        assertEquals(200, replacedResponse.statusCode());
+        JsonNode replaced = json(replacedResponse);
+        assertEquals(1, replaced.get("genres").size());
+        assertTrue(hasGenre(replaced, drama.genreId(), "Drama"));
+        assertFalse(hasGenre(replaced, action.genreId(), "Action"));
+        assertFalse(hasGenre(replaced, comedy.genreId(), "Comedy"));
+
+        HttpResponse<String> clearedResponse = request(
+            "PUT", "/films/" + filmId,
+            """
+            {"title":"Genre Update","year":2024,"genreIds":[]}
+            """
+        );
+        assertEquals(200, clearedResponse.statusCode());
+        assertEquals(0, json(clearedResponse).get("genres").size());
+    }
+
+    private boolean hasGenre(JsonNode film, int genreId, String name) {
+        JsonNode genres = film.get("genres");
+        if (genres == null || !genres.isArray()) {
+            return false;
+        }
+
+        for (JsonNode genre : genres) {
+            if (genre.path("genreId").asInt() == genreId
+                    && name.equals(genre.path("name").asText())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private HttpResponse<String> request(
