@@ -72,6 +72,16 @@ public final class Main {
             new com.marquee.handler.GenreHandler(genreService)
         );
 
+        var screeningRepository =
+            new com.marquee.repository.ScreeningRepository(database);
+        var screeningService =
+            new com.marquee.service.ScreeningService(screeningRepository);
+
+        server.createContext(
+            "/screenings",
+            new com.marquee.handler.ScreeningHandler(screeningService)
+        );
+
         server.createContext("/", exchange -> {
             try {
                 sendJson(exchange, 404,
