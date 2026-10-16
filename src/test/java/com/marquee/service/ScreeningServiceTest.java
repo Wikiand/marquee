@@ -23,12 +23,16 @@ class ScreeningServiceTest {
         filmRepository.create(
             "Test Film", 2025, "A film for screening tests", null
         );
+        filmRepository.create(
+            "Second Film", 2024, "Another film", null
+        );
 
         return new ScreeningService(new ScreeningRepository(database));
     }
 
     @Test
-    void createScreeningReturnsCreatedScreening() throws Exception {
+    void createScreeningReturnsCreatedScreeningWithFilmTitle()
+            throws Exception {
         ScreeningService service = createService();
 
         var screening = service.createScreening(
@@ -37,6 +41,7 @@ class ScreeningServiceTest {
 
         assertTrue(screening.screeningId() > 0);
         assertEquals(1, screening.filmId());
+        assertEquals("Test Film", screening.filmTitle());
         assertEquals("Main Hall", screening.venue());
         assertEquals("2026-11-01T19:30:00Z", screening.screeningTime());
     }
@@ -106,7 +111,117 @@ class ScreeningServiceTest {
         service.createScreening(1, "Main Hall", "2026-11-01T19:30:00Z");
         service.createScreening(1, "Studio A", "2026-11-02T18:00:00Z");
 
-        assertEquals(2, service.listScreenings().size());
+        var page = service.listScreenings(null, null, null, 1, 20);
+
+        assertEquals(2, page.total());
+        assertEquals(2, page.screenings().size());
+        assertEquals(1, page.page());
+        assertEquals(20, page.per_page());
+    }
+
+    @Test
+    void listScreeningsFiltersByFilmId() throws Exception {
+        ScreeningService service = createService();
+
+        service.createScreening(1, "Main Hall", "2026-11-01T19:30:00Z");
+        service.createScreening(2, "Studio A", "2026-11-02T18:00:00Z");
+
+        var page = service.listScreenings(2, null, null, 1, 20);
+
+        assertEquals(1, page.total());
+        assertEquals("Second Film", page.screenings().get(0).filmTitle());
+    }
+
+    @Test
+    void listScreeningsFiltersVenueCaseInsensitively() throws Exception {
+        ScreeningService service = createService();
+
+        service.createScreening(1, "Main Hall", "2026-11-01T19:30:00Z");
+        service.createScreening(1, "Studio A", "2026-11-02T18:00:00Z");
+
+        var page = service.listScreenings(
+            null, "main", null, 1, 20
+        );
+
+        assertEquals(1, page.total());
+        assertEquals("Main Hall", page.screenings().get(0).venue());
+    }
+
+    @Test
+    void listScreeningsFiltersByDate() throws Exception {
+        ScreeningService service = createService();
+
+        service.createScreening(1, "Main Hall", "2026-11-01T19:30:00Z");
+        service.createScreening(1, "Studio A", "2026-11-02T18:00:00Z");
+
+        var page = service.listScreenings(
+            null, null, "2026-11-02", 1, 20
+        );
+
+        assertEquals(1, page.total());
+        assertEquals(
+            "2026-11-02T18:00:00Z",
+            page.screenings().get(0).screeningTime()
+        );
+    }
+
+    @Test
+    void listScreeningsPaginatesResults() throws Exception {
+        ScreeningService service = createService();
+
+        service.createScreening(1, "Hall 1", "2026-11-01T19:30:00Z");
+        service.createScreening(1, "Hall 2", "2026-11-02T19:30:00Z");
+        service.createScreening(1, "Hall 3", "2026-11-03T19:30:00Z");
+
+        var page = service.listScreenings(null, null, null, 2, 2);
+
+        assertEquals(3, page.total());
+        assertEquals(2, page.page());
+        assertEquals(2, page.per_page());
+        assertEquals(1, page.screenings().size());
+        assertEquals("Hall 3", page.screenings().get(0).venue());
+    }
+
+    @Test
+    void listScreeningsReturnsEmptyPageWhenNoMatches() throws Exception {
+        ScreeningService service = createService();
+
+        var page = service.listScreenings(
+            null, "No such venue", null, 1, 20
+        );
+
+        assertEquals(0, page.total());
+        assertTrue(page.screenings().isEmpty());
+    }
+
+    @Test
+    void listScreeningsRejectsInvalidPage() throws Exception {
+        ScreeningService service = createService();
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> service.listScreenings(null, null, null, 0, 20)
+        );
+    }
+
+    @Test
+    void listScreeningsRejectsPerPageAboveMaximum() throws Exception {
+        ScreeningService service = createService();
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> service.listScreenings(null, null, null, 1, 101)
+        );
+    }
+
+    @Test
+    void listScreeningsRejectsInvalidDate() throws Exception {
+        ScreeningService service = createService();
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> service.listScreenings(null, null, "not-a-date", 1, 20)
+        );
     }
 
     @Test
@@ -120,6 +235,7 @@ class ScreeningServiceTest {
 
         assertTrue(found.isPresent());
         assertEquals(created.screeningId(), found.get().screeningId());
+        assertEquals("Test Film", found.get().filmTitle());
     }
 
     @Test
@@ -147,11 +263,12 @@ class ScreeningServiceTest {
         );
 
         var updated = service.updateScreening(
-            created.screeningId(), 1, "Studio B", "2026-11-03T20:00:00Z"
+            created.screeningId(), 2, "Studio B", "2026-11-03T20:00:00Z"
         );
 
         assertTrue(updated.isPresent());
         assertEquals("Studio B", updated.get().venue());
+        assertEquals("Second Film", updated.get().filmTitle());
         assertEquals("2026-11-03T20:00:00Z", updated.get().screeningTime());
     }
 

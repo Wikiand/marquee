@@ -84,7 +84,73 @@ class ScreeningHandlerTest {
         HttpResponse<String> response = request("GET", "/screenings", null);
 
         assertEquals(200, response.statusCode());
-        assertEquals(2, json(response).size());
+        assertEquals(2, json(response).get("total").asInt());
+        assertEquals(2, json(response).get("screenings").size());
+        assertEquals("Test Film", json(response).get("screenings")
+            .get(0).get("filmTitle").asText());
+    }
+
+    @Test
+    void listScreeningsCanFilterByVenue() throws Exception {
+        createScreening("Main Hall", "2026-11-01T19:30:00Z");
+        createScreening("Studio A", "2026-11-02T18:00:00Z");
+
+        HttpResponse<String> response =
+            request("GET", "/screenings?venue=main", null);
+
+        assertEquals(200, response.statusCode());
+        assertEquals(1, json(response).get("total").asInt());
+        assertEquals("Main Hall", json(response).get("screenings")
+            .get(0).get("venue").asText());
+    }
+
+    @Test
+    void listScreeningsCanFilterByFilmAndDate() throws Exception {
+        createScreening("Main Hall", "2026-11-01T19:30:00Z");
+        createScreening("Studio A", "2026-11-02T18:00:00Z");
+
+        HttpResponse<String> response = request(
+            "GET", "/screenings?film_id=1&date=2026-11-02", null
+        );
+
+        assertEquals(200, response.statusCode());
+        assertEquals(1, json(response).get("total").asInt());
+        assertEquals("Studio A", json(response).get("screenings")
+            .get(0).get("venue").asText());
+    }
+
+    @Test
+    void listScreeningsSupportsPagination() throws Exception {
+        createScreening("Hall 1", "2026-11-01T19:30:00Z");
+        createScreening("Hall 2", "2026-11-02T19:30:00Z");
+
+        HttpResponse<String> response =
+            request("GET", "/screenings?page=2&per_page=1", null);
+
+        assertEquals(200, response.statusCode());
+        JsonNode body = json(response);
+        assertEquals(2, body.get("total").asInt());
+        assertEquals(2, body.get("page").asInt());
+        assertEquals(1, body.get("per_page").asInt());
+        assertEquals(1, body.get("screenings").size());
+        assertEquals("Hall 2", body.get("screenings")
+            .get(0).get("venue").asText());
+    }
+
+    @Test
+    void listScreeningsRejectsInvalidDate() throws Exception {
+        HttpResponse<String> response =
+            request("GET", "/screenings?date=tomorrow", null);
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void listScreeningsRejectsUnknownQueryParameter() throws Exception {
+        HttpResponse<String> response =
+            request("GET", "/screenings?unknown=value", null);
+
+        assertEquals(400, response.statusCode());
     }
 
     @Test
@@ -201,7 +267,7 @@ class ScreeningHandlerTest {
                 + "\"screeningTime\":\"2026-11-01T19:30:00Z\"}"
         );
 
-        assertEquals(400, response.statusCode());
+        assertEquals(404, response.statusCode());
     }
 
     @Test

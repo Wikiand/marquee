@@ -4,10 +4,16 @@ import com.marquee.model.Screening;
 import com.marquee.repository.ScreeningRepository;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 
 public final class ScreeningService {
+
+    public static final int DEFAULT_PAGE = 1;
+    public static final int DEFAULT_PER_PAGE = 20;
+    public static final int MAX_PER_PAGE = 100;
 
     private final ScreeningRepository repository;
 
@@ -15,8 +21,42 @@ public final class ScreeningService {
         this.repository = repository;
     }
 
-    public List<Screening> listScreenings() throws SQLException {
-        return repository.findAll();
+    public ScreeningPage listScreenings(
+            Integer filmId,
+            String venue,
+            String date,
+            int page,
+            int perPage
+    ) throws SQLException {
+        if (filmId != null && filmId <= 0) {
+            throw new IllegalArgumentException(
+                "film_id must be a positive integer"
+            );
+        }
+        if (page < 1) {
+            throw new IllegalArgumentException("Page must be at least 1");
+        }
+        if (perPage < 1 || perPage > MAX_PER_PAGE) {
+            throw new IllegalArgumentException(
+                "per_page must be between 1 and " + MAX_PER_PAGE
+            );
+        }
+        if (date != null) {
+            try {
+                LocalDate.parse(date);
+            } catch (DateTimeParseException exception) {
+                throw new IllegalArgumentException(
+                    "date must use YYYY-MM-DD format"
+                );
+            }
+        }
+
+        List<Screening> screenings = repository.findAll(
+            filmId, venue, date, page, perPage
+        );
+        int total = repository.count(filmId, venue, date);
+
+        return new ScreeningPage(page, perPage, total, screenings);
     }
 
     public Optional<Screening> getScreening(int screeningId)
@@ -35,9 +75,7 @@ public final class ScreeningService {
         validateScreeningTime(screeningTime);
 
         return repository.create(
-            filmId,
-            venue.trim(),
-            screeningTime.trim()
+            filmId, venue.trim(), screeningTime.trim()
         );
     }
 
@@ -53,10 +91,7 @@ public final class ScreeningService {
         validateScreeningTime(screeningTime);
 
         return repository.update(
-            screeningId,
-            filmId,
-            venue.trim(),
-            screeningTime.trim()
+            screeningId, filmId, venue.trim(), screeningTime.trim()
         );
     }
 
@@ -94,6 +129,17 @@ public final class ScreeningService {
             throw new IllegalArgumentException(
                 "Screening time must not be blank"
             );
+        }
+    }
+
+    public record ScreeningPage(
+        int page,
+        int per_page,
+        int total,
+        List<Screening> screenings
+    ) {
+        public ScreeningPage {
+            screenings = List.copyOf(screenings);
         }
     }
 }
