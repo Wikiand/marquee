@@ -1,0 +1,30 @@
+
+erDiagram
+    FILMS {
+        INTEGER film_id PK "AUTOINCREMENT"
+        TEXT title "NOT NULL, non-blank"
+        INTEGER year "NOT NULL, positive"
+        TEXT description "NULLABLE"
+        TEXT created_at "NOT NULL, UTC default"
+    }
+
+    GENRES {
+        INTEGER genre_id PK "AUTOINCREMENT"
+        TEXT name UK "NOT NULL, non-blank"
+    }
+
+    FILM_GENRES {
+        INTEGER film_id PK, FK "NOT NULL"
+        INTEGER genre_id PK, FK "NOT NULL"
+    }
+
+    SCREENINGS {
+        INTEGER screening_id PK "AUTOINCREMENT"
+        INTEGER film_id FK "NOT NULL"
+        TEXT venue "NOT NULL, non-blank"
+        TEXT screening_time "NOT NULL"
+    }
+
+    FILMS ||--o{ FILM_GENRES : has
+    GENRES ||--o{ FILM_GENRES : categorizes
+    FILMS ||--o{ SCREENINGS : scheduled_for
