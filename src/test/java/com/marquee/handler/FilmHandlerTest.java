@@ -19,6 +19,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.sql.Statement;
 import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -347,6 +348,114 @@ class FilmHandlerTest {
         );
         assertEquals(200, clearedResponse.statusCode());
         assertEquals(0, json(clearedResponse).get("genres").size());
+    }
+
+
+    @Test
+    void assignGenreReturns201() throws Exception {
+        int filmId = createFilmId("Arrival Association", 2016);
+        int genreId = createGenreId("Sci-Fi Association");
+
+        HttpResponse<String> response = request(
+            "POST",
+            "/films/" + filmId + "/genres",
+            "{\"genre_id\":" + genreId + "}"
+        );
+
+        assertEquals(201, response.statusCode());
+        assertEquals(filmId, json(response).get("filmId").asInt());
+        assertEquals(genreId, json(response).get("genreId").asInt());
+    }
+
+    @Test
+    void assigningDuplicateGenreReturns409() throws Exception {
+        int filmId = createFilmId("Dune Association", 2021);
+        int genreId = createGenreId("Drama Association");
+
+        HttpResponse<String> first = request(
+            "POST", "/films/" + filmId + "/genres",
+            "{\"genre_id\":" + genreId + "}"
+        );
+        assertEquals(201, first.statusCode());
+
+        HttpResponse<String> second = request(
+            "POST", "/films/" + filmId + "/genres",
+            "{\"genre_id\":" + genreId + "}"
+        );
+
+        assertEquals(409, second.statusCode());
+    }
+
+    @Test
+    void removingAssignedGenreReturns204() throws Exception {
+        int filmId = createFilmId("Removal Association", 2020);
+        int genreId = createGenreId("Mystery Association");
+
+        HttpResponse<String> assigned = request(
+            "POST", "/films/" + filmId + "/genres",
+            "{\"genre_id\":" + genreId + "}"
+        );
+        assertEquals(201, assigned.statusCode());
+
+        HttpResponse<String> removed = request(
+            "DELETE",
+            "/films/" + filmId + "/genres/" + genreId,
+            null
+        );
+
+        assertEquals(204, removed.statusCode());
+        assertTrue(removed.body().isEmpty());
+    }
+
+    @Test
+    void assigningGenreToMissingFilmReturns404() throws Exception {
+        int genreId = createGenreId("Missing Film Association");
+
+        HttpResponse<String> response = request(
+            "POST", "/films/999999/genres",
+            "{\"genre_id\":" + genreId + "}"
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void assigningMissingGenreReturns404() throws Exception {
+        int filmId = createFilmId("Missing Genre Association", 2019);
+
+        HttpResponse<String> response = request(
+            "POST", "/films/" + filmId + "/genres",
+            "{\"genre_id\":999999}"
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    private int createFilmId(String title, int year) throws Exception {
+        HttpResponse<String> response = request(
+            "POST",
+            "/films",
+            "{\"title\":\"" + title + "\",\"year\":" + year + "}"
+        );
+
+        assertEquals(201, response.statusCode());
+        return json(response).get("filmId").asInt();
+    }
+
+    private int createGenreId(String name) throws Exception {
+        try (var connection = database.getConnection();
+             var statement = connection.prepareStatement(
+                 "INSERT INTO genres (name) VALUES (?)",
+                 Statement.RETURN_GENERATED_KEYS
+             )) {
+            statement.setString(1, name);
+            statement.executeUpdate();
+
+            try (var keys = statement.getGeneratedKeys()) {
+                assertTrue(keys.next(), "Expected a generated genre ID");
+                return keys.getInt(1);
+            }
+        }
     }
 
     private boolean hasGenre(JsonNode film, int genreId, String name) {

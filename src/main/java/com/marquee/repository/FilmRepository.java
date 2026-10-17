@@ -15,6 +15,15 @@ import java.util.Optional;
 
 public final class FilmRepository {
 
+    public enum GenreAssociationResult {
+        SUCCESS,
+        FILM_NOT_FOUND,
+        GENRE_NOT_FOUND,
+        ALREADY_ASSIGNED,
+        ASSOCIATION_NOT_FOUND
+    }
+
+
     private final Database database;
 
     public FilmRepository(Database database) {
@@ -397,6 +406,121 @@ public final class FilmRepository {
             result.getString("created_at"),
             genres
         );
+    }
+
+
+    public GenreAssociationResult assignGenre(
+            int filmId, int genreId
+    ) throws SQLException {
+        try (Connection connection = database.getConnection()) {
+            connection.setAutoCommit(false);
+
+            try {
+                if (!filmExists(connection, filmId)) {
+                    connection.rollback();
+                    return GenreAssociationResult.FILM_NOT_FOUND;
+                }
+
+                if (!genreExists(connection, genreId)) {
+                    connection.rollback();
+                    return GenreAssociationResult.GENRE_NOT_FOUND;
+                }
+
+                String checkSql = """
+                    SELECT 1 FROM film_genres
+                    WHERE film_id = ? AND genre_id = ?
+                    """;
+
+                try (PreparedStatement statement =
+                        connection.prepareStatement(checkSql)) {
+                    statement.setInt(1, filmId);
+                    statement.setInt(2, genreId);
+
+                    try (ResultSet result = statement.executeQuery()) {
+                        if (result.next()) {
+                            connection.rollback();
+                            return GenreAssociationResult.ALREADY_ASSIGNED;
+                        }
+                    }
+                }
+
+                String insertSql = """
+                    INSERT INTO film_genres (film_id, genre_id)
+                    VALUES (?, ?)
+                    """;
+
+                try (PreparedStatement statement =
+                        connection.prepareStatement(insertSql)) {
+                    statement.setInt(1, filmId);
+                    statement.setInt(2, genreId);
+                    statement.executeUpdate();
+                }
+
+                connection.commit();
+                return GenreAssociationResult.SUCCESS;
+            } catch (SQLException | RuntimeException exception) {
+                connection.rollback();
+                throw exception;
+            }
+        }
+    }
+
+    public GenreAssociationResult removeGenre(
+            int filmId, int genreId
+    ) throws SQLException {
+        try (Connection connection = database.getConnection()) {
+            connection.setAutoCommit(false);
+
+            try {
+                if (!filmExists(connection, filmId)) {
+                    connection.rollback();
+                    return GenreAssociationResult.FILM_NOT_FOUND;
+                }
+
+                if (!genreExists(connection, genreId)) {
+                    connection.rollback();
+                    return GenreAssociationResult.GENRE_NOT_FOUND;
+                }
+
+                String sql = """
+                    DELETE FROM film_genres
+                    WHERE film_id = ? AND genre_id = ?
+                    """;
+
+                int affectedRows;
+
+                try (PreparedStatement statement =
+                        connection.prepareStatement(sql)) {
+                    statement.setInt(1, filmId);
+                    statement.setInt(2, genreId);
+                    affectedRows = statement.executeUpdate();
+                }
+
+                if (affectedRows == 0) {
+                    connection.rollback();
+                    return GenreAssociationResult.ASSOCIATION_NOT_FOUND;
+                }
+
+                connection.commit();
+                return GenreAssociationResult.SUCCESS;
+            } catch (SQLException | RuntimeException exception) {
+                connection.rollback();
+                throw exception;
+            }
+        }
+    }
+
+    private boolean filmExists(
+            Connection connection, int filmId
+    ) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT 1 FROM films WHERE film_id = ?")) {
+            statement.setInt(1, filmId);
+
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next();
+            }
+        }
     }
 
     public boolean delete(int filmId) throws SQLException {
