@@ -1,0 +1,520 @@
+{
+  "info": {
+    "name": "Marquee API",
+    "description": "CRUD, filtering, pagination, genre association, and cleanup checks for the Marquee API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "genreId",
+      "value": ""
+    },
+    {
+      "key": "filmId",
+      "value": ""
+    },
+    {
+      "key": "screeningId",
+      "value": ""
+    },
+    {
+      "key": "testGenreName",
+      "value": ""
+    },
+    {
+      "key": "testFilmTitle",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Service status is ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Genres",
+      "item": [
+        {
+          "name": "List genres",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/genres"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create test genre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/genres",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testGenreName}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const stamp = Date.now();",
+                  "pm.collectionVariables.set('testGenreName', 'MarqueeTestGenre' + stamp);",
+                  "pm.collectionVariables.set('testFilmTitle', 'MarqueeTestFilm' + stamp);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.test('Response contains genreId', () => pm.expect(data.genreId).to.exist);",
+                  "if (data.genreId !== undefined) pm.collectionVariables.set('genreId', String(data.genreId));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get test genre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/genres/{{genreId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Genre ID matches', () => pm.expect(String(pm.response.json().genreId)).to.eql(pm.collectionVariables.get('genreId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject duplicate genre name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/genres",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testGenreName}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Conflict uses error envelope', () => pm.expect(pm.response.json().error.code).to.eql(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update test genre",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/genres/{{genreId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testGenreName}}Updated\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Updated genre name is returned', () => pm.expect(pm.response.json().name).to.eql(pm.collectionVariables.get('testGenreName') + 'Updated'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Films",
+      "item": [
+        {
+          "name": "List films",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/films"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response contains paginated films', () => { const d = pm.response.json(); pm.expect(d.films).to.be.an('array'); pm.expect(d.page).to.eql(1); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create film with genre association",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/films",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{testFilmTitle}}\",\n  \"year\": 2024,\n  \"description\": \"Created by the Marquee Postman collection.\",\n  \"genreIds\": [\n    {{genreId}}\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.test('Response contains filmId', () => pm.expect(data.filmId).to.exist);",
+                  "if (data.filmId !== undefined) pm.collectionVariables.set('filmId', String(data.filmId));",
+                  "pm.test('Film title is correct', () => pm.expect(pm.response.json().title).to.eql(pm.collectionVariables.get('testFilmTitle')));",
+                  "pm.test('Genre association is present', () => pm.expect(pm.response.json().genres.some(g => String(g.genreId) === pm.collectionVariables.get('genreId'))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get test film",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/films/{{filmId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Film ID matches', () => pm.expect(String(pm.response.json().filmId)).to.eql(pm.collectionVariables.get('filmId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter films by title and paginate",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/films?title={{testFilmTitle}}&page=1&per_page=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Filtered result includes test film', () => pm.expect(pm.response.json().films.some(f => String(f.filmId) === pm.collectionVariables.get('filmId'))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update film and retain genre association",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/films/{{filmId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{testFilmTitle}}Updated\",\n  \"year\": 2025,\n  \"description\": \"Updated by the Marquee Postman collection.\",\n  \"genreIds\": [\n    {{genreId}}\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Updated year is returned', () => pm.expect(pm.response.json().year).to.eql(2025));",
+                  "pm.test('Genre association remains', () => pm.expect(pm.response.json().genres.some(g => String(g.genreId) === pm.collectionVariables.get('genreId'))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Screenings",
+      "item": [
+        {
+          "name": "List screenings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/screenings"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response contains paginated screenings', () => pm.expect(pm.response.json().screenings).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create test screening",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/screenings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filmId\": {{filmId}},\n  \"venue\": \"PostmanTestVenue\",\n  \"screeningTime\": \"2027-01-15T19:30:00Z\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 201', () => pm.response.to.have.status(201));",
+                  "var data = pm.response.json();",
+                  "pm.test('Response contains screeningId', () => pm.expect(data.screeningId).to.exist);",
+                  "if (data.screeningId !== undefined) pm.collectionVariables.set('screeningId', String(data.screeningId));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get test screening",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/screenings/{{screeningId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Screening ID matches', () => pm.expect(String(pm.response.json().screeningId)).to.eql(pm.collectionVariables.get('screeningId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter screenings by film and venue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/screenings?film_id={{filmId}}&venue=PostmanTestVenue&page=1&per_page=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Filtered results include test screening', () => pm.expect(pm.response.json().screenings.some(s => String(s.screeningId) === pm.collectionVariables.get('screeningId'))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update test screening",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/screenings/{{screeningId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filmId\": {{filmId}},\n  \"venue\": \"PostmanTestVenueUpdated\",\n  \"screeningTime\": \"2027-01-16T19:30:00Z\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Updated venue is returned', () => pm.expect(pm.response.json().venue).to.eql('PostmanTestVenueUpdated'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Delete test screening",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/screenings/{{screeningId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete test film",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/films/{{filmId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete test genre",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/genres/{{genreId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
