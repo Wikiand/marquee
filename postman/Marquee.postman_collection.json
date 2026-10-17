@@ -225,7 +225,7 @@
           ]
         },
         {
-          "name": "Create film with genre association",
+          "name": "Create test film",
           "request": {
             "method": "POST",
             "header": [
@@ -237,21 +237,164 @@
             "url": "{{baseUrl}}/films",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"{{testFilmTitle}}\",\n  \"year\": 2024,\n  \"description\": \"Created by the Marquee Postman collection.\",\n  \"genreIds\": [\n    {{genreId}}\n  ]\n}"
+              "raw": "{\n  \"title\": \"{{testFilmTitle}}\",\n  \"year\": 2024,\n  \"description\": \"Created by the Marquee Postman collection.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
+                "type": "text",
                 "exec": [
                   "pm.test('Returns HTTP 201', () => pm.response.to.have.status(201));",
                   "var data = pm.response.json();",
                   "pm.test('Response contains filmId', () => pm.expect(data.filmId).to.exist);",
                   "if (data.filmId !== undefined) pm.collectionVariables.set('filmId', String(data.filmId));",
-                  "pm.test('Film title is correct', () => pm.expect(pm.response.json().title).to.eql(pm.collectionVariables.get('testFilmTitle')));",
-                  "pm.test('Genre association is present', () => pm.expect(pm.response.json().genres.some(g => String(g.genreId) === pm.collectionVariables.get('genreId'))).to.eql(true));"
+                  "pm.test('Film title is correct', () => pm.expect(data.title).to.eql(pm.collectionVariables.get('testFilmTitle')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assign genre to test film",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/films/{{filmId}}/genres",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"genre_id\": {{genreId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Returns HTTP 201', () => pm.response.to.have.status(201));",
+                  "const data = pm.response.json();",
+                  "pm.test('Response filmId matches', () => pm.expect(String(data.filmId)).to.eql(pm.collectionVariables.get('filmId')));",
+                  "pm.test('Response genreId matches', () => pm.expect(String(data.genreId)).to.eql(pm.collectionVariables.get('genreId')));",
+                  "pm.test('Success message is returned', () => pm.expect(data.message).to.eql('Genre assigned to film'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject duplicate film genre association",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/films/{{filmId}}/genres",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"genre_id\": {{genreId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Returns HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Conflict uses error envelope', () => pm.expect(pm.response.json().error.code).to.eql(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject invalid genre ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/films/{{filmId}}/genres",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"genre_id\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Returns HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation uses error envelope', () => pm.expect(pm.response.json().error.code).to.eql(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject missing genre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/films/{{filmId}}/genres",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"genre_id\": 999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Returns HTTP 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Not-found response uses error envelope', () => pm.expect(pm.response.json().error.code).to.eql(404));"
                 ]
               }
             }
@@ -471,6 +614,26 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Returns HTTP 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove genre from test film",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/films/{{filmId}}/genres/{{genreId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text",
+                "exec": [
+                  "pm.test('Returns HTTP 204', () => pm.response.to.have.status(204));",
+                  "pm.test('Response body is empty', () => pm.expect(pm.response.text()).to.eql(''));"
                 ]
               }
             }
