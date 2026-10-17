@@ -1,5 +1,8 @@
 package com.marquee.handler;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marquee.model.Film;
 import com.marquee.model.FilmInput;
@@ -38,6 +41,18 @@ public final class FilmHandler implements HttpHandler {
 
                     String method = exchange.getRequestMethod();
                     String suffix = path.substring("/films/".length());
+
+                    if (suffix.endsWith("/genres")
+                            && method.equals("POST")) {
+                        handleAssignGenre(exchange, suffix);
+                        return;
+                    }
+
+                    if (suffix.contains("/genres/")
+                            && method.equals("DELETE")) {
+                        handleRemoveGenre(exchange, suffix);
+                        return;
+                    }
 
                     if (method.equals("PUT")) {
                         handleUpdate(exchange, suffix);
@@ -167,6 +182,103 @@ public final class FilmHandler implements HttpHandler {
 
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(204, -1);
+    }
+
+
+    private void handleAssignGenre(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+        String filmIdPart = suffix.substring(
+            0, suffix.length() - "/genres".length()
+        );
+        int filmId = parsePositiveId(filmIdPart, "film");
+
+        JsonNode body;
+        try {
+            body = mapper.readTree(exchange.getRequestBody());
+        } catch (JsonProcessingException exception) {
+            sendError(exchange, 400, "Invalid JSON request body");
+            return;
+        }
+
+        if (body == null || !body.isObject()
+                || !body.has("genre_id")
+                || !body.get("genre_id").canConvertToInt()) {
+            sendError(exchange, 400, "genre_id must be a positive integer");
+            return;
+        }
+
+        int genreId = body.get("genre_id").asInt();
+        if (genreId <= 0) {
+            sendError(exchange, 400, "genre_id must be a positive integer");
+            return;
+        }
+
+        var result = service.assignGenre(filmId, genreId);
+
+        switch (result) {
+            case SUCCESS -> send(exchange, 201, Map.of(
+                "filmId", filmId,
+                "genreId", genreId,
+                "message", "Genre assigned to film"
+            ));
+            case FILM_NOT_FOUND ->
+                sendError(exchange, 404, "Film not found");
+            case GENRE_NOT_FOUND ->
+                sendError(exchange, 404, "Genre not found");
+            case ALREADY_ASSIGNED ->
+                sendError(exchange, 409, "Genre is already assigned to this film");
+            case ASSOCIATION_NOT_FOUND ->
+                sendError(exchange, 404, "Film-genre association not found");
+        }
+    }
+
+    private void handleRemoveGenre(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+        String[] parts = suffix.split("/", -1);
+
+        if (parts.length != 3
+                || !parts[1].equals("genres")) {
+            sendError(exchange, 404, "Route not found");
+            return;
+        }
+
+        int filmId = parsePositiveId(parts[0], "film");
+        int genreId = parsePositiveId(parts[2], "genre");
+
+        var result = service.removeGenre(filmId, genreId);
+
+        switch (result) {
+            case SUCCESS -> {
+                exchange.getResponseHeaders().set("Cache-Control", "no-store");
+                exchange.sendResponseHeaders(204, -1);
+            }
+            case FILM_NOT_FOUND ->
+                sendError(exchange, 404, "Film not found");
+            case GENRE_NOT_FOUND ->
+                sendError(exchange, 404, "Genre not found");
+            case ASSOCIATION_NOT_FOUND ->
+                sendError(exchange, 404, "Film-genre association not found");
+            case ALREADY_ASSIGNED ->
+                sendError(exchange, 409, "Unexpected association state");
+        }
+    }
+
+    private int parsePositiveId(String value, String resource)
+            throws IOException {
+        try {
+            int id = Integer.parseInt(value);
+            if (id > 0) {
+                return id;
+            }
+        } catch (NumberFormatException ignored) {
+            // Return the same client-facing error for non-numeric IDs.
+        }
+
+        throw new IllegalArgumentException(
+            "Invalid " + resource + " ID"
+        );
     }
 
     private void handleFilmById(

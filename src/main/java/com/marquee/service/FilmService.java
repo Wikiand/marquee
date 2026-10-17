@@ -3,6 +3,7 @@ package com.marquee.service;
 import com.marquee.model.Film;
 import com.marquee.model.FilmInput;
 import com.marquee.repository.FilmRepository;
+import com.marquee.repository.FilmRepository.GenreAssociationResult;
 
 import java.sql.SQLException;
 import java.util.HashSet;
@@ -131,6 +132,35 @@ public final class FilmService {
                     "Duplicate genre ID: " + genreId
                 );
             }
+        }
+    }
+
+
+    public GenreAssociationResult assignGenre(
+            int filmId, int genreId
+    ) throws SQLException {
+        validateAssociationIds(filmId, genreId);
+        return repository.assignGenre(filmId, genreId);
+    }
+
+    public GenreAssociationResult removeGenre(
+            int filmId, int genreId
+    ) throws SQLException {
+        validateAssociationIds(filmId, genreId);
+        return repository.removeGenre(filmId, genreId);
+    }
+
+    private void validateAssociationIds(int filmId, int genreId) {
+        if (filmId <= 0) {
+            throw new IllegalArgumentException(
+                "Film ID must be a positive integer"
+            );
+        }
+
+        if (genreId <= 0) {
+            throw new IllegalArgumentException(
+                "Genre ID must be a positive integer"
+            );
         }
     }
 
