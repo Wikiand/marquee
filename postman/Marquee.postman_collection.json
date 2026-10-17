@@ -289,7 +289,7 @@
                 "type": "text",
                 "exec": [
                   "pm.test('Returns HTTP 201', () => pm.response.to.have.status(201));",
-                  "const data = pm.response.json();",
+                  "var data = pm.response.json();",
                   "pm.test('Response filmId matches', () => pm.expect(String(data.filmId)).to.eql(pm.collectionVariables.get('filmId')));",
                   "pm.test('Response genreId matches', () => pm.expect(String(data.genreId)).to.eql(pm.collectionVariables.get('genreId')));",
                   "pm.test('Success message is returned', () => pm.expect(data.message).to.eql('Genre assigned to film'));"
