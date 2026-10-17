@@ -110,6 +110,7 @@ class GenreHandlerTest {
         assertEquals(
             404, json(response).get("error").get("code").asInt()
         );
+        assertTrue(json(response).get("error").get("details").isArray());
     }
 
     @Test
