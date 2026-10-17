@@ -41,7 +41,7 @@ public final class Main {
             try {
                 if (!exchange.getRequestMethod().equals("GET")) {
                     sendJson(exchange, 405,
-                        "{\"error\":{\"code\":405,\"message\":\"Method not allowed\"}}");
+                        "{\"error\":{\"code\":405,\"message\":\"Method not allowed\",\"details\":[]}}");
                     return;
                 }
 
@@ -85,7 +85,7 @@ public final class Main {
         server.createContext("/", exchange -> {
             try {
                 sendJson(exchange, 404,
-                    "{\"error\":{\"code\":404,\"message\":\"Route not found\"}}");
+                    "{\"error\":{\"code\":404,\"message\":\"Route not found\",\"details\":[]}}");
             } finally {
                 exchange.close();
             }

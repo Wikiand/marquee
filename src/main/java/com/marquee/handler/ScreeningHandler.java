@@ -293,7 +293,8 @@ public final class ScreeningHandler implements HttpHandler {
         send(exchange, status, Map.of(
             "error", Map.of(
                 "code", status,
-                "message", message
+                "message", message,
+                "details", java.util.List.of()
             )
         ));
     }

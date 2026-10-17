@@ -190,6 +190,7 @@ class FilmHandlerTest {
         HttpResponse<String> response = request("GET", "/films/9999", null);
 
         assertEquals(404, response.statusCode());
+        assertTrue(json(response).get("error").get("details").isArray());
     }
 
     @Test
