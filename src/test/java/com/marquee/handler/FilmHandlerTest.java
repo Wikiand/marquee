@@ -1,10 +1,10 @@
 package com.marquee.handler;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marquee.database.Database;
 import com.marquee.repository.FilmRepository;
 import com.marquee.repository.GenreRepository;
+import com.marquee.repository.ScreeningRepository;
 import com.marquee.service.FilmService;
 import com.marquee.service.GenreService;
 import com.sun.net.httpserver.HttpServer;
@@ -231,6 +231,43 @@ class FilmHandlerTest {
     }
 
     @Test
+    void deletingFilmRemovesGenreAssociationsAndScreenings()
+            throws Exception {
+        int filmId = createFilmId("Cascade Film", 2024);
+        int genreId = createGenreId("Cascade Genre");
+
+        HttpResponse<String> assigned = request(
+            "POST", "/films/" + filmId + "/genres",
+            "{\"genre_id\":" + genreId + "}"
+        );
+        assertEquals(201, assigned.statusCode());
+
+        new ScreeningRepository(database).create(
+            filmId, "Test Cinema", "2026-11-01T19:00:00"
+        );
+
+        HttpResponse<String> deleted = request(
+            "DELETE", "/films/" + filmId, null
+        );
+        assertEquals(204, deleted.statusCode());
+
+        try (var connection = database.getConnection();
+             var statement = connection.createStatement()) {
+            try (var result = statement.executeQuery(
+                    "SELECT COUNT(*) FROM film_genres WHERE film_id = " + filmId)) {
+                assertTrue(result.next());
+                assertEquals(0, result.getInt(1));
+            }
+
+            try (var result = statement.executeQuery(
+                    "SELECT COUNT(*) FROM screenings WHERE film_id = " + filmId)) {
+                assertTrue(result.next());
+                assertEquals(0, result.getInt(1));
+            }
+        }
+    }
+
+    @Test
     void deleteMissingFilmReturns404() throws Exception {
         HttpResponse<String> response = request("DELETE", "/films/9999", null);
 
@@ -256,7 +293,6 @@ class FilmHandlerTest {
         assertEquals(201, response.statusCode());
         return json(response);
     }
-
 
     @Test
     void createFilmWithGenresReturnsAssignedGenres() throws Exception {
@@ -350,7 +386,6 @@ class FilmHandlerTest {
         assertEquals(200, clearedResponse.statusCode());
         assertEquals(0, json(clearedResponse).get("genres").size());
     }
-
 
     @Test
     void assignGenreReturns201() throws Exception {
