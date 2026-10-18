@@ -30,10 +30,11 @@ class GenreHandlerTest {
     private HttpClient client;
     private ObjectMapper mapper;
     private String baseUrl;
+    private Database database;
 
     @BeforeEach
     void setUp() throws Exception {
-        Database database = new Database(tempDir.resolve("genres.db"));
+        database = new Database(tempDir.resolve("genres.db"));
         database.initialize();
 
         GenreService service = new GenreService(
@@ -223,6 +224,41 @@ class GenreHandlerTest {
         assertEquals(204, deleted.statusCode());
         assertTrue(deleted.body().isEmpty());
         assertEquals(404, fetched.statusCode());
+    }
+
+    @Test
+    void deletingGenreRemovesFilmGenreAssociations() throws Exception {
+        JsonNode createdGenre = json(request(
+            "POST", "/genres", "{\"name\":\"Cascade Genre\"}"
+        ));
+        int genreId = createdGenre.get("genreId").asInt();
+
+        int filmId = new com.marquee.repository.FilmRepository(database)
+            .create("Cascade Film", 2024, null, java.util.List.of())
+            .filmId();
+
+        try (var connection = database.getConnection();
+             var statement = connection.createStatement()) {
+            statement.executeUpdate(
+                "INSERT INTO film_genres (film_id, genre_id) VALUES ("
+                    + filmId + ", " + genreId + ")"
+            );
+        }
+
+        HttpResponse<String> deleted = request(
+            "DELETE", "/genres/" + genreId, null
+        );
+
+        assertEquals(204, deleted.statusCode());
+
+        try (var connection = database.getConnection();
+             var statement = connection.createStatement();
+             var result = statement.executeQuery(
+                 "SELECT COUNT(*) FROM film_genres WHERE genre_id = "
+                     + genreId)) {
+            assertTrue(result.next());
+            assertEquals(0, result.getInt(1));
+        }
     }
 
     @Test
