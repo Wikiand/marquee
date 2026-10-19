@@ -538,6 +538,27 @@
           ]
         },
         {
+          "name": "Reject zero screening page size",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/screenings?per_page=0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Returns HTTP 400\", () => pm.response.to.have.status(400));",
+                  "const error = pm.response.json().error;",
+                  "pm.test(\"Error envelope contains required fields\", () => { pm.expect(error.code).to.eql(400); pm.expect(error.message).to.be.a(\"string\"); pm.expect(error).to.have.property(\"details\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Create test screening",
           "request": {
             "method": "POST",
