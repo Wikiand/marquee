@@ -44,7 +44,7 @@ curl -i http://localhost:8080/health
 4. Start Marquee.
 5. Run the collection using Postman's Collection Runner.
 
-The initial collection checks the health endpoint, film listing, unknown-film handling, genre listing, and screening listing.
+The collection contains 24 requests covering the API endpoints and their expected responses. Run the collection against a running instance of Marquee.
 
 ## API conventions
 
@@ -52,7 +52,7 @@ The initial collection checks the health endpoint, film listing, unknown-film ha
 - Film filtering supports `genre`, `title`, `year`, `page`, and `per_page`.
 - Screening filtering supports `film_id`, `venue`, `date`, `page`, and `per_page`.
 - Film genre associations are supplied through `genreIds` on film creation or update; there are no separate association routes registered in the current server.
-- Errors use an `error` object containing `code` and `message`.
+- Error responses use an `error` object containing `code`, `message`, and `details`.
 
 ## Troubleshooting
 
