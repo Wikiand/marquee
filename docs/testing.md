@@ -51,7 +51,7 @@ The collection contains 24 requests covering the API endpoints and their expecte
 - Film endpoints use `/films`; genre endpoints use `/genres`; screening endpoints use `/screenings`.
 - Film filtering supports `genre`, `title`, `year`, `page`, and `per_page`.
 - Screening filtering supports `film_id`, `venue`, `date`, `page`, and `per_page`.
-- Film genre associations are supplied through `genreIds` on film creation or update; there are no separate association routes registered in the current server.
+- Film genre associations can be managed through `POST /films/{id}/genres` with a `genre_id` request field and `DELETE /films/{id}/genres/{genre_id}`. Film creation and updates also accept `genreIds`.
 - Error responses use an `error` object containing `code`, `message`, and `details`.
 
 ## Troubleshooting
