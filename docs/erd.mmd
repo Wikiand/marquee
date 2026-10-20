@@ -1,30 +1,33 @@
-
 erDiagram
     FILMS {
         INTEGER film_id PK "AUTOINCREMENT"
-        TEXT title "NOT NULL, non-blank"
-        INTEGER year "NOT NULL, positive"
+        TEXT title "NOT NULL, CHECK non-blank"
+        INTEGER year "NOT NULL, CHECK greater than zero"
         TEXT description "NULLABLE"
-        TEXT created_at "NOT NULL, UTC default"
+        TEXT created_at "NOT NULL, UTC timestamp default"
     }
 
     GENRES {
         INTEGER genre_id PK "AUTOINCREMENT"
-        TEXT name UK "NOT NULL, non-blank"
+        TEXT name UK "NOT NULL, CHECK non-blank"
     }
 
     FILM_GENRES {
-        INTEGER film_id PK, FK "NOT NULL"
-        INTEGER genre_id PK, FK "NOT NULL"
+        INTEGER film_id PK, FK "NOT NULL, CASCADE on film delete"
+        INTEGER genre_id PK, FK "NOT NULL, CASCADE on genre delete"
     }
 
     SCREENINGS {
         INTEGER screening_id PK "AUTOINCREMENT"
-        INTEGER film_id FK "NOT NULL"
-        TEXT venue "NOT NULL, non-blank"
+        INTEGER film_id FK "NOT NULL, CASCADE on film delete"
+        TEXT venue "NOT NULL, CHECK non-blank"
         TEXT screening_time "NOT NULL"
     }
 
     FILMS ||--o{ FILM_GENRES : has
     GENRES ||--o{ FILM_GENRES : categorizes
-    FILMS ||--o{ SCREENINGS : scheduled_for
+    FILMS ||--o{ SCREENINGS : schedules
+
+    %% Composite primary key: FILM_GENRES (film_id, genre_id)
+    %% Index: idx_film_genres_genre (genre_id, film_id)
+    %% Index: idx_screenings_film (film_id)
