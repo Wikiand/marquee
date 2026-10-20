@@ -73,6 +73,29 @@ The API listens on port `8080` by default. Check its health using:
 
     curl -i http://localhost:8080/health
 
+### Database and Seed Data
+
+On first startup, Marquee creates the database schema and loads a small
+starter catalogue automatically.
+
+To load the complete catalogue from `seed.sql`:
+
+1. Start Marquee once to initialize the database.
+2. Stop the API with `Ctrl+C`.
+3. Run the seed script against the initialized database:
+
+       sqlite3 data/marquee.db < seed.sql
+
+4. Restart Marquee.
+
+The SQL seed includes 24 films, 8 genres, their genre associations, and
+30 screenings. It uses explicit IDs and conflict handling so existing
+matching records are not inserted again. It does not overwrite existing
+records with the same IDs.
+
+If you configure a different database path with the `MARQUEE_DB`
+environment variable, use that path in the `sqlite3` command instead.
+
 ## API Reference
 
 Base URL: `http://localhost:8080`
