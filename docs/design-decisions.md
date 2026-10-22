@@ -78,7 +78,7 @@ Marquee uses conventional HTTP status codes to communicate request outcomes.
 
 Errors use a consistent JSON envelope containing `error.code`, `error.message`, and `error.details`.
 
-The `details` array is currently empty for all errors. Field-specific validation details could be added in a future improvement to help clients identify individual input problems.
+The `details` array may be empty for general errors. Some validation errors include field-specific messages to help clients identify individual input problems. For example, film creation reports missing required fields and invalid year values.
 
 ## 10. Seed Data
 
@@ -115,7 +115,7 @@ The current implementation prioritizes a lightweight, locally runnable API and t
 
 Potential improvements include:
 
-- Returning meaningful field-specific validation details in the error envelope.
+- Extending field-specific validation details consistently to other endpoints; film creation already returns detailed validation messages.
 - Introducing explicit schema migration tracking as the database schema evolves.
 - Expanding operational logging and structured security-event reporting where needed.
 - Evaluating authentication, authorization, and production deployment requirements before exposing the API beyond a local development environment.

@@ -40,8 +40,9 @@ Errors use the following JSON structure:
 }
 ```
 
-The `code` field matches the HTTP status. The `details` array is currently
-empty.
+The `code` field matches the HTTP status. The `details` array may be
+empty for general errors. Some validation errors include field-specific
+messages, such as missing required fields or invalid values.
 
 ## Health
 
@@ -439,6 +440,6 @@ Status codes:
 
 - IDs in URL paths must be valid positive integers.
 - JSON property names are case-sensitive.
-- Unknown or unsupported query parameters may return `400 Bad Request`.
+- Unknown query parameters on film and screening listings return `400 Bad Request`.
 - The API does not currently provide authentication or authorization.
 - Refer to `testing.md` for test execution and Postman collection instructions.

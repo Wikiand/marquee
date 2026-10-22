@@ -14,7 +14,9 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -118,17 +120,40 @@ public final class FilmHandler implements HttpHandler {
     private void handleCreate(HttpExchange exchange)
             throws IOException, SQLException {
 
-        FilmInput input;
-
+        JsonNode body;
         try {
-            input = mapper.readValue(
-                exchange.getRequestBody(), FilmInput.class
-            );
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            body = mapper.readTree(exchange.getRequestBody());
+        } catch (JsonProcessingException exception) {
             sendError(exchange, 400, "Invalid JSON request body");
             return;
         }
 
+        if (body == null || !body.isObject()) {
+            sendError(exchange, 400, "Request body must be a JSON object");
+            return;
+        }
+
+        List<String> details = new ArrayList<>();
+
+        JsonNode titleNode = body.get("title");
+        if (titleNode == null || !titleNode.isTextual()
+                || titleNode.asText().isBlank()) {
+            details.add("title is required and cannot be blank");
+        }
+
+        JsonNode yearNode = body.get("year");
+        if (yearNode == null || !yearNode.isIntegralNumber()
+                || !yearNode.canConvertToInt()
+                || yearNode.asInt() <= 0) {
+            details.add("year must be a positive integer");
+        }
+
+        if (!details.isEmpty()) {
+            sendValidationError(exchange, details);
+            return;
+        }
+
+        FilmInput input = mapper.treeToValue(body, FilmInput.class);
         Film created = service.createFilm(input);
         send(exchange, 201, created);
     }
@@ -364,6 +389,18 @@ public final class FilmHandler implements HttpHandler {
                 field + " must be an integer"
             );
         }
+    }
+
+    private void sendValidationError(
+            HttpExchange exchange, List<String> details
+    ) throws IOException {
+        send(exchange, 400, Map.of(
+            "error", Map.of(
+                "code", 400,
+                "message", "Validation failed",
+                "details", details
+            )
+        ));
     }
 
     private void sendError(

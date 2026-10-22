@@ -98,6 +98,11 @@ class FilmHandlerTest {
         );
 
         assertEquals(400, response.statusCode());
+        JsonNode error = json(response).get("error");
+        assertEquals("Validation failed", error.get("message").asText());
+        assertTrue(error.get("details").toString().contains(
+            "title is required and cannot be blank"
+        ));
     }
 
     @Test
@@ -107,6 +112,11 @@ class FilmHandlerTest {
         );
 
         assertEquals(400, response.statusCode());
+        JsonNode error = json(response).get("error");
+        assertEquals("Validation failed", error.get("message").asText());
+        assertTrue(error.get("details").toString().contains(
+            "year must be a positive integer"
+        ));
     }
 
     @Test
