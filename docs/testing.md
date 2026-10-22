@@ -44,7 +44,7 @@ curl -i http://localhost:8080/health
 4. Start Marquee.
 5. Run the collection using Postman's Collection Runner.
 
-The collection contains 44 requests covering API endpoints, successful operations, and input-validation error cases. Run the collection against a running instance of Marquee.
+The collection contains 47 requests covering API endpoints, successful operations, and input-validation error cases. The latest verified run executed 97 assertions with zero failures.
 
 ## API conventions
 
