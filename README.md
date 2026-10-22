@@ -75,8 +75,9 @@ The API listens on port `8080` by default. Check its health using:
 
 ### Database and Seed Data
 
-On first startup, Marquee creates the database schema and loads a small
-starter catalogue automatically.
+On first startup, Marquee creates the database schema but leaves the
+catalogue empty. Load sample data separately using the `seed.sql` instructions
+below when you want a populated catalogue.
 
 To load the complete catalogue from `seed.sql`:
 
