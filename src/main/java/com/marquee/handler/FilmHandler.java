@@ -228,6 +228,7 @@ public final class FilmHandler implements HttpHandler {
 
         if (body == null || !body.isObject()
                 || !body.has("genre_id")
+                || !body.get("genre_id").isIntegralNumber()
                 || !body.get("genre_id").canConvertToInt()) {
             sendError(exchange, 400, "genre_id must be a positive integer");
             return;

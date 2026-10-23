@@ -414,6 +414,19 @@ class FilmHandlerTest {
     }
 
     @Test
+    void assigningGenreWithDecimalIdReturns400() throws Exception {
+        int filmId = createFilmId("Decimal Genre Association", 2024);
+        int genreId = createGenreId("Decimal Genre");
+
+        HttpResponse<String> response = request(
+            "POST", "/films/" + filmId + "/genres",
+            "{\"genre_id\":" + genreId + ".5}"
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
     void assigningDuplicateGenreReturns409() throws Exception {
         int filmId = createFilmId("Dune Association", 2021);
         int genreId = createGenreId("Drama Association");
