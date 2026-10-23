@@ -243,6 +243,33 @@ class ScreeningHandlerTest {
     }
 
     @Test
+    void updateScreeningRejectsDecimalFilmId() throws Exception {
+        JsonNode created = createScreening(
+            "Main Hall", "2026-11-01T19:30:00Z"
+        );
+        int id = created.get("screeningId").asInt();
+
+        HttpResponse<String> response = request(
+            "PUT", "/screenings/" + id,
+            "{\"filmId\":1.5,\"venue\":\"Studio B\","
+                + "\"screeningTime\":\"2026-11-03T20:00:00Z\"}"
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void createScreeningRejectsDecimalFilmId() throws Exception {
+        HttpResponse<String> response = request(
+            "POST", "/screenings",
+            "{\"filmId\":1.5,\"venue\":\"Main Hall\","
+                + "\"screeningTime\":\"2026-11-01T19:30:00Z\"}"
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
     void createScreeningRejectsMalformedJson() throws Exception {
         HttpResponse<String> response =
             request("POST", "/screenings", "{\"filmId\":");

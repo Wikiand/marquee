@@ -1,5 +1,7 @@
 # Marquee
 
+[![Marquee CI](https://github.com/Wikiand/marquee/actions/workflows/ci.yml/badge.svg)](https://github.com/Wikiand/marquee/actions/workflows/ci.yml)
+
 **A lightweight REST API for managing films, genres, and cinema screenings.**
 
 Marquee is a Java 17 backend project built with the JDK's built-in HTTP server, SQLite, and Maven. It provides CRUD operations for films, genres, and screenings, alongside filtering, pagination, input validation, and film–genre association management.
@@ -208,7 +210,25 @@ Example:
 
 Ensure the database directory exists and is writable before starting the application.
 
+## Automated Testing
+
+Marquee uses JUnit 5 to test HTTP handlers and service-layer logic.
+
+The suite covers CRUD operations, filtering, pagination, input validation, film-genre associations, and error handling.
+
+Run the complete verification suite:
+
+```bash
+mvn --batch-mode clean verify
+```
+
+Latest verified local result: **121 tests passed, 0 failures, 0 errors, 0 skipped.**
+
+See the [Testing Guide](docs/testing.md) for additional instructions.
+
 ## Project Documentation
+
+- [API Reference](docs/api.md) — detailed endpoint documentation.
 
 - [Testing Guide](docs/testing.md) — instructions for running and testing the API.
 - [Design Decisions](docs/design-decisions.md) — architectural and implementation decisions.

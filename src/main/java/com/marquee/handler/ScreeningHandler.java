@@ -170,6 +170,7 @@ public final class ScreeningHandler implements HttpHandler {
 
         if (!body.isObject()
                 || !body.has("filmId")
+                || !body.get("filmId").isIntegralNumber()
                 || !body.get("filmId").canConvertToInt()
                 || !body.has("venue")
                 || !body.get("venue").isTextual()
@@ -212,6 +213,7 @@ public final class ScreeningHandler implements HttpHandler {
 
         if (!body.isObject()
                 || !body.has("filmId")
+                || !body.get("filmId").isIntegralNumber()
                 || !body.get("filmId").canConvertToInt()
                 || !body.has("venue")
                 || !body.get("venue").isTextual()
