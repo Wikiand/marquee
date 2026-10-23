@@ -250,14 +250,25 @@ class GenreHandlerTest {
         );
 
         assertEquals(204, deleted.statusCode());
+        assertTrue(deleted.body().isEmpty());
 
         try (var connection = database.getConnection();
-             var statement = connection.createStatement();
-             var result = statement.executeQuery(
-                 "SELECT COUNT(*) FROM film_genres WHERE genre_id = "
-                     + genreId)) {
-            assertTrue(result.next());
-            assertEquals(0, result.getInt(1));
+             var statement = connection.createStatement()) {
+
+            try (var result = statement.executeQuery(
+                    "SELECT COUNT(*) FROM film_genres WHERE genre_id = "
+                        + genreId)) {
+                assertTrue(result.next());
+                assertEquals(0, result.getInt(1),
+                    "Genre associations should be removed");
+            }
+
+            try (var result = statement.executeQuery(
+                    "SELECT COUNT(*) FROM films WHERE film_id = " + filmId)) {
+                assertTrue(result.next());
+                assertEquals(1, result.getInt(1),
+                    "The film should remain after its genre is deleted");
+            }
         }
     }
 
