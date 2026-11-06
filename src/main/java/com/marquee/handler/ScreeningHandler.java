@@ -1,8 +1,9 @@
 package com.marquee.handler;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.marquee.http.RequestBodyException;
+import com.marquee.http.RequestBodyReader;
 import com.marquee.model.Screening;
 import com.marquee.service.ScreeningService;
 import com.sun.net.httpserver.HttpExchange;
@@ -15,11 +16,14 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class ScreeningHandler implements HttpHandler {
 
     private final ScreeningService service;
     private final ObjectMapper mapper = new ObjectMapper();
+    private final RequestBodyReader bodyReader =
+            new RequestBodyReader(mapper);
 
     public ScreeningHandler(ScreeningService service) {
         this.service = service;
@@ -60,6 +64,12 @@ public final class ScreeningHandler implements HttpHandler {
                     );
                 }
 
+            } catch (RequestBodyException exception) {
+                sendError(
+                    exchange,
+                    exception.getStatusCode(),
+                    exception.getMessage()
+                );
             } catch (IllegalArgumentException exception) {
                 sendError(exchange, 400, exception.getMessage());
             } catch (SQLException exception) {
@@ -76,12 +86,13 @@ public final class ScreeningHandler implements HttpHandler {
 
     private void handleList(HttpExchange exchange)
             throws IOException, SQLException {
+
         Map<String, String> query = parseQuery(
             exchange.getRequestURI().getRawQuery()
         );
 
         for (String key : query.keySet()) {
-            if (!java.util.Set.of(
+            if (!Set.of(
                     "film_id", "venue", "date", "page", "per_page"
             ).contains(key)) {
                 throw new IllegalArgumentException(
@@ -91,6 +102,7 @@ public final class ScreeningHandler implements HttpHandler {
         }
 
         Integer filmId = null;
+
         if (query.containsKey("film_id")) {
             filmId = parsePositiveInt(query.get("film_id"), "film_id");
         }
@@ -123,9 +135,11 @@ public final class ScreeningHandler implements HttpHandler {
 
         for (String part : rawQuery.split("&")) {
             String[] pair = part.split("=", 2);
+
             String key = URLDecoder.decode(
                 pair[0], StandardCharsets.UTF_8
             );
+
             String value = pair.length > 1
                 ? URLDecoder.decode(pair[1], StandardCharsets.UTF_8)
                 : "";
@@ -135,6 +149,7 @@ public final class ScreeningHandler implements HttpHandler {
                     "Query parameter names and values must not be blank"
                 );
             }
+
             if (parameters.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException(
                     "Duplicate query parameter: " + key
@@ -148,11 +163,13 @@ public final class ScreeningHandler implements HttpHandler {
     private int parsePositiveInt(String value, String parameter) {
         try {
             int parsed = Integer.parseInt(value);
+
             if (parsed <= 0) {
                 throw new IllegalArgumentException(
                     parameter + " must be a positive integer"
                 );
             }
+
             return parsed;
         } catch (NumberFormatException exception) {
             throw new IllegalArgumentException(
@@ -162,22 +179,16 @@ public final class ScreeningHandler implements HttpHandler {
     }
 
     private void handleCreate(HttpExchange exchange)
-            throws IOException, SQLException {
-        JsonNode body = readBody(exchange);
-        if (body == null) {
-            return;
-        }
+            throws IOException, SQLException, RequestBodyException {
 
-        if (!body.isObject()
-                || !body.has("filmId")
-                || !body.get("filmId").isIntegralNumber()
-                || !body.get("filmId").canConvertToInt()
-                || !body.has("venue")
-                || !body.get("venue").isTextual()
-                || !body.has("screeningTime")
-                || !body.get("screeningTime").isTextual()) {
-            sendError(exchange, 400,
-                "filmId, venue, and screeningTime are required");
+        JsonNode body = bodyReader.readJsonObject(exchange);
+
+        if (!hasValidScreeningFields(body)) {
+            sendError(
+                exchange,
+                400,
+                "filmId, venue, and screeningTime are required"
+            );
             return;
         }
 
@@ -190,10 +201,14 @@ public final class ScreeningHandler implements HttpHandler {
         send(exchange, 201, created);
     }
 
-    private void handleGetById(HttpExchange exchange, String suffix)
-            throws IOException, SQLException {
+    private void handleGetById(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+
         int screeningId = parseId(suffix);
-        Optional<Screening> screening = service.getScreening(screeningId);
+
+        Optional<Screening> screening =
+            service.getScreening(screeningId);
 
         if (screening.isEmpty()) {
             sendError(exchange, 404, "Screening not found");
@@ -203,24 +218,20 @@ public final class ScreeningHandler implements HttpHandler {
         send(exchange, 200, screening.get());
     }
 
-    private void handleUpdate(HttpExchange exchange, String suffix)
-            throws IOException, SQLException {
-        int screeningId = parseId(suffix);
-        JsonNode body = readBody(exchange);
-        if (body == null) {
-            return;
-        }
+    private void handleUpdate(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException, RequestBodyException {
 
-        if (!body.isObject()
-                || !body.has("filmId")
-                || !body.get("filmId").isIntegralNumber()
-                || !body.get("filmId").canConvertToInt()
-                || !body.has("venue")
-                || !body.get("venue").isTextual()
-                || !body.has("screeningTime")
-                || !body.get("screeningTime").isTextual()) {
-            sendError(exchange, 400,
-                "filmId, venue, and screeningTime are required");
+        int screeningId = parseId(suffix);
+
+        JsonNode body = bodyReader.readJsonObject(exchange);
+
+        if (!hasValidScreeningFields(body)) {
+            sendError(
+                exchange,
+                400,
+                "filmId, venue, and screeningTime are required"
+            );
             return;
         }
 
@@ -239,8 +250,20 @@ public final class ScreeningHandler implements HttpHandler {
         send(exchange, 200, updated.get());
     }
 
-    private void handleDelete(HttpExchange exchange, String suffix)
-            throws IOException, SQLException {
+    private boolean hasValidScreeningFields(JsonNode body) {
+        return body.has("filmId")
+            && body.get("filmId").isIntegralNumber()
+            && body.get("filmId").canConvertToInt()
+            && body.has("venue")
+            && body.get("venue").isTextual()
+            && body.has("screeningTime")
+            && body.get("screeningTime").isTextual();
+    }
+
+    private void handleDelete(
+            HttpExchange exchange, String suffix
+    ) throws IOException, SQLException {
+
         int screeningId = parseId(suffix);
 
         if (!service.deleteScreening(screeningId)) {
@@ -259,32 +282,22 @@ public final class ScreeningHandler implements HttpHandler {
 
         try {
             int id = Integer.parseInt(suffix);
+
             if (id <= 0) {
                 throw new IllegalArgumentException(
                     "Invalid screening ID"
                 );
             }
+
             return id;
         } catch (NumberFormatException exception) {
             throw new IllegalArgumentException("Invalid screening ID");
         }
     }
 
-    private JsonNode readBody(HttpExchange exchange) throws IOException {
-        try {
-            JsonNode body = mapper.readTree(exchange.getRequestBody());
-            if (body == null) {
-                sendError(exchange, 400, "Invalid JSON request body");
-            }
-            return body;
-        } catch (JsonProcessingException exception) {
-            sendError(exchange, 400, "Invalid JSON request body");
-            return null;
-        }
-    }
-
     private boolean isMissingFilm(SQLException exception) {
         String message = exception.getMessage();
+
         return message != null
             && message.contains("FOREIGN KEY constraint failed");
     }
@@ -292,6 +305,7 @@ public final class ScreeningHandler implements HttpHandler {
     private void sendError(
             HttpExchange exchange, int status, String message
     ) throws IOException {
+
         send(exchange, status, Map.of(
             "error", Map.of(
                 "code", status,
@@ -304,11 +318,13 @@ public final class ScreeningHandler implements HttpHandler {
     private void send(
             HttpExchange exchange, int status, Object body
     ) throws IOException {
+
         byte[] bytes = mapper.writeValueAsBytes(body);
 
         exchange.getResponseHeaders().set(
             "Content-Type", "application/json; charset=utf-8"
         );
+
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(status, bytes.length);
 

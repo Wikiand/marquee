@@ -1,9 +1,10 @@
 package com.marquee.handler;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.core.JsonProcessingException;
-
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.marquee.http.RequestBodyException;
+import com.marquee.http.RequestBodyReader;
 import com.marquee.model.Film;
 import com.marquee.model.FilmInput;
 import com.marquee.service.FilmService;
@@ -24,6 +25,8 @@ public final class FilmHandler implements HttpHandler {
 
     private final FilmService service;
     private final ObjectMapper mapper = new ObjectMapper();
+    private final RequestBodyReader bodyReader =
+            new RequestBodyReader(mapper);
 
     public FilmHandler(FilmService service) {
         this.service = service;
@@ -94,9 +97,11 @@ public final class FilmHandler implements HttpHandler {
                 String genre = query.get("genre");
                 String title = query.get("title");
                 Integer year = parseOptionalInteger(query, "year");
+
                 int page = parseInteger(
                     query.getOrDefault("page", "1"), "page"
                 );
+
                 int perPage = parseInteger(
                     query.getOrDefault("per_page", "20"), "per_page"
                 );
@@ -107,6 +112,12 @@ public final class FilmHandler implements HttpHandler {
 
                 send(exchange, 200, result);
 
+            } catch (RequestBodyException exception) {
+                sendError(
+                    exchange,
+                    exception.getStatusCode(),
+                    exception.getMessage()
+                );
             } catch (IllegalArgumentException exception) {
                 sendError(exchange, 400, exception.getMessage());
             } catch (SQLException exception) {
@@ -118,30 +129,21 @@ public final class FilmHandler implements HttpHandler {
     }
 
     private void handleCreate(HttpExchange exchange)
-            throws IOException, SQLException {
+            throws IOException, SQLException, RequestBodyException {
 
-        JsonNode body;
-        try {
-            body = mapper.readTree(exchange.getRequestBody());
-        } catch (JsonProcessingException exception) {
-            sendError(exchange, 400, "Invalid JSON request body");
-            return;
-        }
-
-        if (body == null || !body.isObject()) {
-            sendError(exchange, 400, "Request body must be a JSON object");
-            return;
-        }
+        JsonNode body = bodyReader.readJsonObject(exchange);
 
         List<String> details = new ArrayList<>();
 
         JsonNode titleNode = body.get("title");
+
         if (titleNode == null || !titleNode.isTextual()
                 || titleNode.asText().isBlank()) {
             details.add("title is required and cannot be blank");
         }
 
         JsonNode yearNode = body.get("year");
+
         if (yearNode == null || !yearNode.isIntegralNumber()
                 || !yearNode.canConvertToInt()
                 || yearNode.asInt() <= 0) {
@@ -155,12 +157,13 @@ public final class FilmHandler implements HttpHandler {
 
         FilmInput input = mapper.treeToValue(body, FilmInput.class);
         Film created = service.createFilm(input);
+
         send(exchange, 201, created);
     }
 
     private void handleUpdate(
             HttpExchange exchange, String suffix
-    ) throws IOException, SQLException {
+    ) throws IOException, SQLException, RequestBodyException {
 
         if (suffix.isBlank() || suffix.contains("/")) {
             sendError(exchange, 404, "Film not found");
@@ -168,13 +171,14 @@ public final class FilmHandler implements HttpHandler {
         }
 
         int filmId = parseInteger(suffix, "film ID");
+
+        JsonNode body = bodyReader.readJsonObject(exchange);
+
         FilmInput input;
 
         try {
-            input = mapper.readValue(
-                exchange.getRequestBody(), FilmInput.class
-            );
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            input = mapper.treeToValue(body, FilmInput.class);
+        } catch (JsonProcessingException exception) {
             sendError(exchange, 400, "Invalid JSON request body");
             return;
         }
@@ -209,25 +213,19 @@ public final class FilmHandler implements HttpHandler {
         exchange.sendResponseHeaders(204, -1);
     }
 
-
     private void handleAssignGenre(
             HttpExchange exchange, String suffix
-    ) throws IOException, SQLException {
+    ) throws IOException, SQLException, RequestBodyException {
+
         String filmIdPart = suffix.substring(
             0, suffix.length() - "/genres".length()
         );
+
         int filmId = parsePositiveId(filmIdPart, "film");
 
-        JsonNode body;
-        try {
-            body = mapper.readTree(exchange.getRequestBody());
-        } catch (JsonProcessingException exception) {
-            sendError(exchange, 400, "Invalid JSON request body");
-            return;
-        }
+        JsonNode body = bodyReader.readJsonObject(exchange);
 
-        if (body == null || !body.isObject()
-                || !body.has("genre_id")
+        if (!body.has("genre_id")
                 || !body.get("genre_id").isIntegralNumber()
                 || !body.get("genre_id").canConvertToInt()) {
             sendError(exchange, 400, "genre_id must be a positive integer");
@@ -235,6 +233,7 @@ public final class FilmHandler implements HttpHandler {
         }
 
         int genreId = body.get("genre_id").asInt();
+
         if (genreId <= 0) {
             sendError(exchange, 400, "genre_id must be a positive integer");
             return;
@@ -253,7 +252,11 @@ public final class FilmHandler implements HttpHandler {
             case GENRE_NOT_FOUND ->
                 sendError(exchange, 404, "Genre not found");
             case ALREADY_ASSIGNED ->
-                sendError(exchange, 409, "Genre is already assigned to this film");
+                sendError(
+                    exchange,
+                    409,
+                    "Genre is already assigned to this film"
+                );
             case ASSOCIATION_NOT_FOUND ->
                 sendError(exchange, 404, "Film-genre association not found");
         }
@@ -262,10 +265,10 @@ public final class FilmHandler implements HttpHandler {
     private void handleRemoveGenre(
             HttpExchange exchange, String suffix
     ) throws IOException, SQLException {
+
         String[] parts = suffix.split("/", -1);
 
-        if (parts.length != 3
-                || !parts[1].equals("genres")) {
+        if (parts.length != 3 || !parts[1].equals("genres")) {
             sendError(exchange, 404, "Route not found");
             return;
         }
@@ -291,10 +294,10 @@ public final class FilmHandler implements HttpHandler {
         }
     }
 
-    private int parsePositiveId(String value, String resource)
-            throws IOException {
+    private int parsePositiveId(String value, String resource) {
         try {
             int id = Integer.parseInt(value);
+
             if (id > 0) {
                 return id;
             }
@@ -340,6 +343,7 @@ public final class FilmHandler implements HttpHandler {
             String key = URLDecoder.decode(
                 parts[0], StandardCharsets.UTF_8
             );
+
             String value = parts.length > 1
                 ? URLDecoder.decode(parts[1], StandardCharsets.UTF_8)
                 : "";
@@ -395,6 +399,7 @@ public final class FilmHandler implements HttpHandler {
     private void sendValidationError(
             HttpExchange exchange, List<String> details
     ) throws IOException {
+
         send(exchange, 400, Map.of(
             "error", Map.of(
                 "code", 400,
@@ -407,11 +412,12 @@ public final class FilmHandler implements HttpHandler {
     private void sendError(
             HttpExchange exchange, int status, String message
     ) throws IOException {
+
         send(exchange, status, Map.of(
             "error", Map.of(
                 "code", status,
                 "message", message,
-                "details", java.util.List.of()
+                "details", List.of()
             )
         ));
     }
@@ -419,13 +425,14 @@ public final class FilmHandler implements HttpHandler {
     private void send(
             HttpExchange exchange, int status, Object body
     ) throws IOException {
+
         byte[] bytes = mapper.writeValueAsBytes(body);
 
         exchange.getResponseHeaders().set(
             "Content-Type", "application/json; charset=utf-8"
         );
-        exchange.getResponseHeaders().set("Cache-Control", "no-store");
 
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(status, bytes.length);
 
         try (var output = exchange.getResponseBody()) {

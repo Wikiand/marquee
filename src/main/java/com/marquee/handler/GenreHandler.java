@@ -1,8 +1,9 @@
 package com.marquee.handler;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.marquee.http.RequestBodyException;
+import com.marquee.http.RequestBodyReader;
 import com.marquee.model.Genre;
 import com.marquee.service.GenreService;
 import com.sun.net.httpserver.HttpExchange;
@@ -10,6 +11,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -17,6 +19,8 @@ public final class GenreHandler implements HttpHandler {
 
     private final GenreService service;
     private final ObjectMapper mapper = new ObjectMapper();
+    private final RequestBodyReader bodyReader =
+            new RequestBodyReader(mapper);
 
     public GenreHandler(GenreService service) {
         this.service = service;
@@ -68,6 +72,12 @@ public final class GenreHandler implements HttpHandler {
 
                 send(exchange, 200, service.listGenres());
 
+            } catch (RequestBodyException exception) {
+                sendError(
+                    exchange,
+                    exception.getStatusCode(),
+                    exception.getMessage()
+                );
             } catch (IllegalArgumentException exception) {
                 sendError(exchange, 400, exception.getMessage());
             } catch (SQLException exception) {
@@ -82,25 +92,25 @@ public final class GenreHandler implements HttpHandler {
         }
     }
 
-    private void handleCreate(
-            HttpExchange exchange
-    ) throws IOException, SQLException {
-        JsonNode body = readBody(exchange);
+    private void handleCreate(HttpExchange exchange)
+            throws IOException, SQLException, RequestBodyException {
 
-        if (body == null || !body.isObject()
-                || !body.has("name")
-                || !body.get("name").isTextual()) {
+        JsonNode body = bodyReader.readJsonObject(exchange);
+
+        if (!body.has("name") || !body.get("name").isTextual()) {
             sendError(exchange, 400, "Genre name must be a string");
             return;
         }
 
         Genre created = service.createGenre(body.get("name").asText());
+
         send(exchange, 201, created);
     }
 
     private void handleGetById(
             HttpExchange exchange, String suffix
     ) throws IOException, SQLException {
+
         int genreId = parseGenreId(suffix);
 
         Optional<Genre> genre = service.findGenreById(genreId);
@@ -115,13 +125,13 @@ public final class GenreHandler implements HttpHandler {
 
     private void handleUpdate(
             HttpExchange exchange, String suffix
-    ) throws IOException, SQLException {
-        int genreId = parseGenreId(suffix);
-        JsonNode body = readBody(exchange);
+    ) throws IOException, SQLException, RequestBodyException {
 
-        if (body == null || !body.isObject()
-                || !body.has("name")
-                || !body.get("name").isTextual()) {
+        int genreId = parseGenreId(suffix);
+
+        JsonNode body = bodyReader.readJsonObject(exchange);
+
+        if (!body.has("name") || !body.get("name").isTextual()) {
             sendError(exchange, 400, "Genre name must be a string");
             return;
         }
@@ -141,6 +151,7 @@ public final class GenreHandler implements HttpHandler {
     private void handleDelete(
             HttpExchange exchange, String suffix
     ) throws IOException, SQLException {
+
         int genreId = parseGenreId(suffix);
 
         if (!service.deleteGenre(genreId)) {
@@ -158,6 +169,7 @@ public final class GenreHandler implements HttpHandler {
         }
 
         final int genreId;
+
         try {
             genreId = Integer.parseInt(suffix);
         } catch (NumberFormatException exception) {
@@ -171,17 +183,9 @@ public final class GenreHandler implements HttpHandler {
         return genreId;
     }
 
-    private JsonNode readBody(HttpExchange exchange) throws IOException {
-        try {
-            return mapper.readTree(exchange.getRequestBody());
-        } catch (JsonProcessingException exception) {
-            sendError(exchange, 400, "Invalid JSON request body");
-            return null;
-        }
-    }
-
     private boolean isDuplicateGenre(SQLException exception) {
         String message = exception.getMessage();
+
         return message != null
             && message.contains("UNIQUE constraint failed: genres.name");
     }
@@ -189,11 +193,12 @@ public final class GenreHandler implements HttpHandler {
     private void sendError(
             HttpExchange exchange, int status, String message
     ) throws IOException {
+
         send(exchange, status, Map.of(
             "error", Map.of(
                 "code", status,
                 "message", message,
-                "details", java.util.List.of()
+                "details", List.of()
             )
         ));
     }
@@ -201,11 +206,13 @@ public final class GenreHandler implements HttpHandler {
     private void send(
             HttpExchange exchange, int status, Object body
     ) throws IOException {
+
         byte[] bytes = mapper.writeValueAsBytes(body);
 
         exchange.getResponseHeaders().set(
             "Content-Type", "application/json; charset=utf-8"
         );
+
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(status, bytes.length);
 
