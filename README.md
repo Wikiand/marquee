@@ -234,8 +234,3 @@ See the [Testing Guide](docs/testing.md) for additional instructions.
 - [Design Decisions](docs/design-decisions.md) — architectural and implementation decisions.
 - [Entity Relationship Diagram](docs/erd.mmd) — database relationships.
 - [Postman Collection](postman/Marquee.postman_collection.json) — API requests for manual testing.
-
-## Limitations
-
-Marquee is a backend API project. It does not currently include a frontend or built-in authentication and authorization.
-
