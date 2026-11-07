@@ -19,7 +19,12 @@ public final class MigrationRunner {
     ) {
     }
 
-    private static final Map<String, Set<String>> EXPECTED_COLUMNS =
+    /*
+     * The original schema expected before applying any pending migrations.
+     * Keep this separate from the latest schema so older databases can
+     * pass validation and receive their pending migrations.
+     */
+    private static final Map<String, Set<String>> BASELINE_EXPECTED_COLUMNS =
             Map.of(
                 "films", Set.of(
                     "film_id",
@@ -41,6 +46,35 @@ public final class MigrationRunner {
                     "film_id",
                     "venue",
                     "screening_time"
+                )
+            );
+
+    /*
+     * The complete schema after every migration has been applied.
+     */
+    private static final Map<String, Set<String>> LATEST_EXPECTED_COLUMNS =
+            Map.of(
+                "films", Set.of(
+                    "film_id",
+                    "title",
+                    "year",
+                    "description",
+                    "created_at"
+                ),
+                "genres", Set.of(
+                    "genre_id",
+                    "name"
+                ),
+                "film_genres", Set.of(
+                    "film_id",
+                    "genre_id"
+                ),
+                "screenings", Set.of(
+                    "screening_id",
+                    "film_id",
+                    "venue",
+                    "screening_time",
+                    "room"
                 )
             );
 
@@ -115,6 +149,16 @@ public final class MigrationRunner {
                 ON screenings(film_id)
                 """
             )
+        ),
+        new Migration(
+            5,
+            "Add room to screenings",
+            List.of(
+                """
+                ALTER TABLE screenings
+                ADD COLUMN room TEXT
+                """
+            )
         )
     );
 
@@ -144,11 +188,15 @@ public final class MigrationRunner {
         }
     }
 
+    /*
+     * Existing databases only need to satisfy the original schema.
+     * Pending migrations are responsible for bringing them forward.
+     */
     private void validateExistingSchema(Connection connection)
             throws SQLException {
 
         for (Map.Entry<String, Set<String>> entry
-                : EXPECTED_COLUMNS.entrySet()) {
+                : BASELINE_EXPECTED_COLUMNS.entrySet()) {
 
             String table = entry.getKey();
 
@@ -162,11 +210,14 @@ public final class MigrationRunner {
         }
     }
 
+    /*
+     * Once migrations finish, every column in the latest schema must exist.
+     */
     private void validateCompleteSchema(Connection connection)
             throws SQLException {
 
         for (Map.Entry<String, Set<String>> entry
-                : EXPECTED_COLUMNS.entrySet()) {
+                : LATEST_EXPECTED_COLUMNS.entrySet()) {
 
             validateTableColumns(
                 connection,

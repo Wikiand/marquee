@@ -1,3 +1,4 @@
+
 package com.marquee.repository;
 
 import com.marquee.database.Database;
@@ -22,7 +23,6 @@ public final class FilmRepository {
         ALREADY_ASSIGNED,
         ASSOCIATION_NOT_FOUND
     }
-
 
     private final Database database;
 
@@ -408,10 +408,10 @@ public final class FilmRepository {
         );
     }
 
-
     public GenreAssociationResult assignGenre(
             int filmId, int genreId
     ) throws SQLException {
+
         try (Connection connection = database.getConnection()) {
             connection.setAutoCommit(false);
 
@@ -433,6 +433,7 @@ public final class FilmRepository {
 
                 try (PreparedStatement statement =
                         connection.prepareStatement(checkSql)) {
+
                     statement.setInt(1, filmId);
                     statement.setInt(2, genreId);
 
@@ -451,6 +452,7 @@ public final class FilmRepository {
 
                 try (PreparedStatement statement =
                         connection.prepareStatement(insertSql)) {
+
                     statement.setInt(1, filmId);
                     statement.setInt(2, genreId);
                     statement.executeUpdate();
@@ -458,6 +460,7 @@ public final class FilmRepository {
 
                 connection.commit();
                 return GenreAssociationResult.SUCCESS;
+
             } catch (SQLException | RuntimeException exception) {
                 connection.rollback();
                 throw exception;
@@ -468,6 +471,7 @@ public final class FilmRepository {
     public GenreAssociationResult removeGenre(
             int filmId, int genreId
     ) throws SQLException {
+
         try (Connection connection = database.getConnection()) {
             connection.setAutoCommit(false);
 
@@ -491,6 +495,7 @@ public final class FilmRepository {
 
                 try (PreparedStatement statement =
                         connection.prepareStatement(sql)) {
+
                     statement.setInt(1, filmId);
                     statement.setInt(2, genreId);
                     affectedRows = statement.executeUpdate();
@@ -503,6 +508,7 @@ public final class FilmRepository {
 
                 connection.commit();
                 return GenreAssociationResult.SUCCESS;
+
             } catch (SQLException | RuntimeException exception) {
                 connection.rollback();
                 throw exception;
@@ -513,8 +519,10 @@ public final class FilmRepository {
     private boolean filmExists(
             Connection connection, int filmId
     ) throws SQLException {
+
         try (PreparedStatement statement = connection.prepareStatement(
                 "SELECT 1 FROM films WHERE film_id = ?")) {
+
             statement.setInt(1, filmId);
 
             try (ResultSet result = statement.executeQuery()) {
@@ -524,13 +532,50 @@ public final class FilmRepository {
     }
 
     public boolean delete(int filmId) throws SQLException {
-        String sql = "DELETE FROM films WHERE film_id = ?";
 
-        try (Connection connection = database.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection connection = database.getConnection()) {
+            connection.setAutoCommit(false);
 
-            statement.setInt(1, filmId);
-            return statement.executeUpdate() > 0;
+            try {
+                String deleteGenresSql =
+                    "DELETE FROM film_genres WHERE film_id = ?";
+
+                try (PreparedStatement statement =
+                        connection.prepareStatement(deleteGenresSql)) {
+
+                    statement.setInt(1, filmId);
+                    statement.executeUpdate();
+                }
+
+                String deleteScreeningsSql =
+                    "DELETE FROM screenings WHERE film_id = ?";
+
+                try (PreparedStatement statement =
+                        connection.prepareStatement(deleteScreeningsSql)) {
+
+                    statement.setInt(1, filmId);
+                    statement.executeUpdate();
+                }
+
+                String deleteFilmSql =
+                    "DELETE FROM films WHERE film_id = ?";
+
+                int affectedRows;
+
+                try (PreparedStatement statement =
+                        connection.prepareStatement(deleteFilmSql)) {
+
+                    statement.setInt(1, filmId);
+                    affectedRows = statement.executeUpdate();
+                }
+
+                connection.commit();
+                return affectedRows > 0;
+
+            } catch (SQLException | RuntimeException exception) {
+                connection.rollback();
+                throw exception;
+            }
         }
     }
 }

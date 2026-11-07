@@ -1,16 +1,30 @@
 package com.marquee;
 
 import com.marquee.database.Database;
+import com.marquee.handler.FilmHandler;
+import com.marquee.handler.GenreHandler;
+import com.marquee.handler.ScreeningHandler;
+import com.marquee.http.RequestLoggingFilter;
+import com.marquee.repository.FilmRepository;
+import com.marquee.repository.GenreRepository;
+import com.marquee.repository.ScreeningRepository;
+import com.marquee.service.FilmService;
+import com.marquee.service.GenreService;
+import com.marquee.service.ScreeningService;
+import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.concurrent.Executors;
 
 public final class Main {
 
@@ -25,8 +39,9 @@ public final class Main {
         );
 
         Path parent = databasePath.toAbsolutePath().getParent();
+
         if (parent != null) {
-            java.nio.file.Files.createDirectories(parent);
+            Files.createDirectories(parent);
         }
 
         Database database = new Database(databasePath);
@@ -36,75 +51,109 @@ public final class Main {
             new InetSocketAddress("0.0.0.0", 8080), 0
         );
 
-        server.createContext("/health", exchange -> {
+        createLoggedContext(server, "/health", exchange -> {
             try {
                 if (!exchange.getRequestMethod().equals("GET")) {
-                    sendJson(exchange, 405,
-                        "{\"error\":{\"code\":405,\"message\":\"Method not allowed\",\"details\":[]}}");
+                    sendJson(
+                        exchange,
+                        405,
+                        "{\"error\":{\"code\":405,\"message\":\"Method not allowed\",\"details\":[]}}"
+                    );
                     return;
                 }
 
-                sendJson(exchange, 200,
-                    "{\"status\":\"ok\",\"service\":\"Marquee\"}");
+                sendJson(
+                    exchange,
+                    200,
+                    "{\"status\":\"ok\",\"service\":\"Marquee\"}"
+                );
             } finally {
                 exchange.close();
             }
         });
 
-        var filmRepository =
-            new com.marquee.repository.FilmRepository(database);
-        var filmService =
-            new com.marquee.service.FilmService(filmRepository);
+        FilmRepository filmRepository =
+            new FilmRepository(database);
+        FilmService filmService =
+            new FilmService(filmRepository);
 
-        server.createContext(
+        createLoggedContext(
+            server,
             "/films",
-            new com.marquee.handler.FilmHandler(filmService)
+            new FilmHandler(filmService)
         );
 
-        var genreRepository =
-            new com.marquee.repository.GenreRepository(database);
-        var genreService =
-            new com.marquee.service.GenreService(genreRepository);
+        GenreRepository genreRepository =
+            new GenreRepository(database);
+        GenreService genreService =
+            new GenreService(genreRepository);
 
-        server.createContext(
+        createLoggedContext(
+            server,
             "/genres",
-            new com.marquee.handler.GenreHandler(genreService)
+            new GenreHandler(genreService)
         );
 
-        var screeningRepository =
-            new com.marquee.repository.ScreeningRepository(database);
-        var screeningService =
-            new com.marquee.service.ScreeningService(screeningRepository);
+        ScreeningRepository screeningRepository =
+            new ScreeningRepository(database);
+        ScreeningService screeningService =
+            new ScreeningService(screeningRepository);
 
-        server.createContext(
+        createLoggedContext(
+            server,
             "/screenings",
-            new com.marquee.handler.ScreeningHandler(screeningService)
+            new ScreeningHandler(screeningService)
         );
 
-        server.createContext("/", exchange -> {
+        createLoggedContext(server, "/", exchange -> {
             try {
-                sendJson(exchange, 404,
-                    "{\"error\":{\"code\":404,\"message\":\"Route not found\",\"details\":[]}}");
+                sendJson(
+                    exchange,
+                    404,
+                    "{\"error\":{\"code\":404,\"message\":\"Route not found\",\"details\":[]}}"
+                );
             } finally {
                 exchange.close();
             }
         });
 
-        server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(8));
+        server.setExecutor(Executors.newFixedThreadPool(8));
         server.start();
 
         System.out.println("Marquee listening on http://localhost:8080");
-        System.out.println("Database: " + databasePath.toAbsolutePath());
+        System.out.println(
+            "Database: " + databasePath.toAbsolutePath()
+        );
+    }
+
+    private static HttpContext createLoggedContext(
+            HttpServer server,
+            String path,
+            HttpHandler handler
+    ) {
+        HttpContext context = server.createContext(path, handler);
+        context.getFilters().add(new RequestLoggingFilter());
+        return context;
     }
 
     private static void sendJson(
-            HttpExchange exchange, int status, String body
+            HttpExchange exchange,
+            int status,
+            String body
     ) throws IOException {
+
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+
         exchange.getResponseHeaders().set(
-            "Content-Type", "application/json; charset=utf-8"
+            "Content-Type",
+            "application/json; charset=utf-8"
         );
-        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+
+        exchange.getResponseHeaders().set(
+            "Cache-Control",
+            "no-store"
+        );
+
         exchange.sendResponseHeaders(status, bytes.length);
 
         try (var output = exchange.getResponseBody()) {

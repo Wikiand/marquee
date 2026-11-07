@@ -28,7 +28,7 @@ class MigrationRunnerTest {
         database.initialize();
 
         assertEquals(
-            List.of(1, 2, 3, 4),
+            List.of(1, 2, 3, 4, 5),
             appliedVersions(database)
         );
 
@@ -69,7 +69,7 @@ class MigrationRunnerTest {
         database.initialize();
 
         assertEquals(
-            List.of(1, 2, 3, 4),
+            List.of(1, 2, 3, 4, 5),
             appliedVersions(database)
         );
 
@@ -88,7 +88,7 @@ class MigrationRunnerTest {
         database.initialize();
 
         assertEquals(
-            List.of(1, 2, 3, 4),
+            List.of(1, 2, 3, 4, 5),
             appliedVersions(database)
         );
 
@@ -108,6 +108,80 @@ class MigrationRunnerTest {
             assertTrue(resultSet.next());
             assertEquals("Legacy Film", resultSet.getString("title"));
             assertEquals(2020, resultSet.getInt("year"));
+        }
+    }
+
+
+    @Test
+    void appliesEvolutionMigrationToExistingVersionFourDatabase()
+            throws Exception {
+
+        Path databasePath = tempDir.resolve("version-four.db");
+
+        createVersionFourDatabase(databasePath);
+
+        Database database = new Database(databasePath);
+        database.initialize();
+
+        assertEquals(
+            List.of(1, 2, 3, 4, 5),
+            appliedVersions(database)
+        );
+
+        assertEquals(1, countRows(database, "films"));
+        assertEquals(1, countRows(database, "genres"));
+        assertEquals(1, countRows(database, "film_genres"));
+        assertEquals(1, countRows(database, "screenings"));
+
+        try (Connection connection = database.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("""
+                 SELECT film_id, venue, screening_time, room
+                 FROM screenings
+                 WHERE screening_id = 5
+                 """)) {
+
+            assertTrue(resultSet.next());
+            assertEquals(7, resultSet.getInt("film_id"));
+            assertEquals("Nairobi Cinema", resultSet.getString("venue"));
+            assertEquals(
+                "2026-11-07T18:00:00",
+                resultSet.getString("screening_time")
+            );
+            assertNull(resultSet.getString("room"));
+        }
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement =
+                    connection.prepareStatement("""
+                        INSERT INTO screenings (
+                            film_id, venue, screening_time, room
+                        )
+                        VALUES (?, ?, ?, ?)
+                        """)) {
+
+            statement.setInt(1, 7);
+            statement.setString(2, "Nairobi Cinema");
+            statement.setString(3, "2026-11-08T19:00:00");
+            statement.setString(4, "Screen 2");
+
+            assertEquals(1, statement.executeUpdate());
+        }
+
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement =
+                    connection.prepareStatement("""
+                        SELECT room
+                        FROM screenings
+                        WHERE screening_time = ?
+                        """)) {
+
+            statement.setString(1, "2026-11-08T19:00:00");
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                assertTrue(resultSet.next());
+                assertEquals("Screen 2", resultSet.getString("room"));
+            }
         }
     }
 
@@ -332,6 +406,65 @@ class MigrationRunnerTest {
                     '2026-11-07T18:00:00'
                 )
                 """);
+        }
+    }
+
+
+    /*
+     * Builds a populated database at migration version 4.
+     * Initialization should apply only migration 5.
+     */
+    private void createVersionFourDatabase(Path databasePath)
+            throws SQLException {
+
+        createLegacyDatabase(databasePath);
+
+        try (Connection connection =
+                DriverManager.getConnection(
+                    "jdbc:sqlite:" + databasePath.toAbsolutePath()
+                );
+             Statement statement = connection.createStatement()) {
+
+            statement.execute("""
+                CREATE TABLE schema_migrations (
+                    version INTEGER PRIMARY KEY,
+                    description TEXT NOT NULL,
+                    applied_at TEXT NOT NULL DEFAULT
+                        (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                )
+                """);
+
+            statement.execute("""
+                CREATE INDEX idx_film_genres_genre
+                ON film_genres(genre_id, film_id)
+                """);
+
+            statement.execute("""
+                CREATE INDEX idx_screenings_film
+                ON screenings(film_id)
+                """);
+
+            try (PreparedStatement insert =
+                    connection.prepareStatement("""
+                        INSERT INTO schema_migrations (
+                            version, description
+                        )
+                        VALUES (?, ?)
+                        """)) {
+
+                String[] descriptions = {
+                    "Create films and genres tables",
+                    "Create film genres relationship table",
+                    "Create screenings table",
+                    "Create database indexes"
+                };
+
+                for (int version = 1; version <= 4; version++) {
+                    insert.setInt(1, version);
+                    insert.setString(2, descriptions[version - 1]);
+                    insert.executeUpdate();
+                }
+            }
         }
     }
 

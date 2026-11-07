@@ -8,6 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -244,7 +248,6 @@ class FilmServiceTest {
         assertEquals(genre.genreId(), updated.genres().get(0).genreId());
     }
 
-
     @Test
     void updateFilmReplacesExistingGenres() throws Exception {
         Database database = new Database(tempDir.resolve("genres-replace.db"));
@@ -289,4 +292,82 @@ class FilmServiceTest {
         assertTrue(updated.genres().isEmpty());
     }
 
+    @Test
+    void deleteFilmRollsBackAllChangesWhenFilmDeletionFails()
+            throws Exception {
+
+        Database database =
+            new Database(tempDir.resolve("delete-rollback.db"));
+        database.initialize();
+
+        GenreRepository genreRepository =
+            new GenreRepository(database);
+
+        var genre = genreRepository.create("Drama");
+
+        FilmService service =
+            new FilmService(new FilmRepository(database));
+
+        var film = service.createFilm(new FilmInput(
+            "Film To Delete",
+            2025,
+            "Transaction test",
+            List.of(genre.genreId())
+        ));
+
+        // Add a screening for this film.
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                 INSERT INTO screenings (film_id, venue, screening_time)
+                 VALUES (?, ?, ?)
+                 """)) {
+
+            statement.setInt(1, film.filmId());
+            statement.setString(2, "Test Cinema");
+            statement.setString(3, "2026-11-07T18:00:00");
+            statement.executeUpdate();
+        }
+
+        // Force the final film deletion to fail.
+        try (Connection connection = database.getConnection();
+             Statement statement = connection.createStatement()) {
+
+            statement.execute("""
+                CREATE TRIGGER reject_film_delete
+                BEFORE DELETE ON films
+                BEGIN
+                    SELECT RAISE(ABORT, 'Forced deletion failure');
+                END
+                """);
+        }
+
+        assertThrows(
+            java.sql.SQLException.class,
+            () -> service.deleteFilm(film.filmId())
+        );
+
+        // The film and its genre association must still exist.
+        var remainingFilm = service.getFilm(film.filmId());
+
+        assertTrue(remainingFilm.isPresent());
+        assertEquals(1, remainingFilm.get().genres().size());
+        assertEquals(
+            genre.genreId(),
+            remainingFilm.get().genres().get(0).genreId()
+        );
+
+        // The screening must also have been restored.
+        try (Connection connection = database.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                 "SELECT COUNT(*) FROM screenings WHERE film_id = ?"
+             )) {
+
+            statement.setInt(1, film.filmId());
+
+            try (ResultSet result = statement.executeQuery()) {
+                assertTrue(result.next());
+                assertEquals(1, result.getInt(1));
+            }
+        }
+    }
 }
