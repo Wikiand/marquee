@@ -44,6 +44,11 @@ The `code` field matches the HTTP status. The `details` array may be
 empty for general errors. Some validation errors include field-specific
 messages, such as missing required fields or invalid values.
 
+Database failures return `500 Internal Server Error` with the message
+`Database operation failed`. Unexpected application failures return the
+same status with the generic message `Internal server error`. Internal
+exception details are not included in either response.
+
 ## Health
 
 ### Check API health

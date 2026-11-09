@@ -222,7 +222,7 @@ Run the complete verification suite:
 mvn --batch-mode clean verify
 ```
 
-Latest verified local result: **121 tests passed, 0 failures, 0 errors, 0 skipped.**
+Latest verified local result: **139 tests passed, 0 failures, 0 errors, 0 skipped.**
 
 See the [Testing Guide](docs/testing.md) for additional instructions.
 

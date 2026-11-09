@@ -273,6 +273,51 @@ class FilmServiceTest {
     }
 
     @Test
+    void updateFilmRollsBackFilmDetailsWhenGenreReplacementFails()
+            throws Exception {
+        Database database =
+            new Database(tempDir.resolve("genres-update-rollback.db"));
+        database.initialize();
+
+        var originalGenre =
+            new GenreRepository(database).create("Drama");
+
+        FilmService service =
+            new FilmService(new FilmRepository(database));
+
+        var created = service.createFilm(new FilmInput(
+            "Original Film",
+            2024,
+            "Original description",
+            List.of(originalGenre.genreId())
+        ));
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> service.updateFilm(
+                created.filmId(),
+                new FilmInput(
+                    "Changed Film",
+                    2025,
+                    "Changed description",
+                    List.of(9999)
+                )
+            )
+        );
+
+        var remaining = service.getFilm(created.filmId()).orElseThrow();
+
+        assertEquals("Original Film", remaining.title());
+        assertEquals(2024, remaining.year());
+        assertEquals("Original description", remaining.description());
+        assertEquals(1, remaining.genres().size());
+        assertEquals(
+            originalGenre.genreId(),
+            remaining.genres().get(0).genreId()
+        );
+    }
+
+    @Test
     void updateFilmClearsGenresWhenGenreIdsAreEmpty() throws Exception {
         Database database = new Database(tempDir.resolve("genres-clear.db"));
         database.initialize();
