@@ -291,6 +291,159 @@ class FilmHandlerTest {
         assertEquals(405, response.statusCode());
     }
 
+
+    @Test
+    void listFilmsUsesDefaultPagination() throws Exception {
+        createFilm("Arrival", 2016);
+
+        HttpResponse<String> response = request("GET", "/films", null);
+
+        assertEquals(200, response.statusCode());
+        JsonNode body = json(response);
+        assertEquals(1, body.get("page").asInt());
+        assertEquals(20, body.get("per_page").asInt());
+        assertEquals(1, body.get("total").asInt());
+    }
+
+    @Test
+    void listFilmsAcceptsQueryParameterWithoutEquals() throws Exception {
+        createFilm("Arrival", 2016);
+
+        HttpResponse<String> response = request(
+            "GET", "/films?title", null
+        );
+
+        assertEquals(200, response.statusCode());
+        assertEquals(1, json(response).get("films").size());
+    }
+
+    @Test
+    void listFilmsRejectsDuplicateQueryParameters() throws Exception {
+        HttpResponse<String> response = request(
+            "GET", "/films?title=Arrival&title=Dune", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void listFilmsRejectsInvalidQueryKey() throws Exception {
+        HttpResponse<String> response = request(
+            "GET", "/films?bad-key=value", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void listFilmsRejectsNonIntegerPage() throws Exception {
+        HttpResponse<String> response = request(
+            "GET", "/films?page=abc", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void patchFilmReturns405() throws Exception {
+        int filmId = createFilmId("Patch Film", 2024);
+
+        HttpResponse<String> response = request(
+            "PATCH", "/films/" + filmId, "{}"
+        );
+
+        assertEquals(405, response.statusCode());
+    }
+
+    @Test
+    void getFilmRejectsNestedPath() throws Exception {
+        int filmId = createFilmId("Nested Path Film", 2024);
+
+        HttpResponse<String> response = request(
+            "GET", "/films/" + filmId + "/extra", null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void updateFilmRejectsInvalidFieldTypes() throws Exception {
+        int filmId = createFilmId("Invalid Update", 2024);
+
+        HttpResponse<String> response = request(
+            "PUT",
+            "/films/" + filmId,
+            "{\"title\":\"Invalid Update\",\"year\":\"not-a-number\"}"
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void removingGenreFromMissingFilmReturns404() throws Exception {
+        int genreId = createGenreId("Existing Removal Genre");
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/999999/genres/" + genreId, null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void removingMissingGenreReturns404() throws Exception {
+        int filmId = createFilmId("Existing Removal Film", 2024);
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/" + filmId + "/genres/999999", null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void removingUnassignedGenreReturns404() throws Exception {
+        int filmId = createFilmId("Unassigned Genre Film", 2024);
+        int genreId = createGenreId("Unassigned Genre");
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/" + filmId + "/genres/" + genreId, null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void removingGenreWithInvalidFilmIdReturns400() throws Exception {
+        HttpResponse<String> response = request(
+            "DELETE", "/films/not-a-number/genres/1", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void removingGenreWithNonPositiveGenreIdReturns400() throws Exception {
+        int filmId = createFilmId("Non Positive Genre Film", 2024);
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/" + filmId + "/genres/0", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void removingGenreWithMalformedRouteReturns404() throws Exception {
+        int filmId = createFilmId("Malformed Removal Route", 2024);
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/" + filmId + "/genres/1/extra", null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
     private JsonNode createFilm(String title, int year) throws Exception {
         HttpResponse<String> response = request(
             "POST", "/films",
