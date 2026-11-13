@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marquee.http.RequestBodyException;
 import com.marquee.http.RequestBodyReader;
+import com.marquee.http.ServerErrorLogger;
 import com.marquee.model.Genre;
 import com.marquee.service.GenreService;
 import com.sun.net.httpserver.HttpExchange;
@@ -84,9 +85,11 @@ public final class GenreHandler implements HttpHandler {
                 if (isDuplicateGenre(exception)) {
                     sendError(exchange, 409, "Genre name already exists");
                 } else {
-                    sendError(exchange, 500, "Database operation failed");
+                    ServerErrorLogger.log(exchange, exception);
+                    sendError(exchange, 500, "Internal server error");
                 }
             } catch (Exception exception) {
+                ServerErrorLogger.log(exchange, exception);
                 sendError(exchange, 500, "Internal server error");
             }
         }

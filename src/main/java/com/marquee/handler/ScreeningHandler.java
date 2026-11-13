@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marquee.http.RequestBodyException;
 import com.marquee.http.RequestBodyReader;
+import com.marquee.http.ServerErrorLogger;
 import com.marquee.model.Screening;
 import com.marquee.service.ScreeningService;
 import com.sun.net.httpserver.HttpExchange;
@@ -76,9 +77,11 @@ public final class ScreeningHandler implements HttpHandler {
                 if (isMissingFilm(exception)) {
                     sendError(exchange, 404, "Film not found");
                 } else {
-                    sendError(exchange, 500, "Database operation failed");
+                    ServerErrorLogger.log(exchange, exception);
+                    sendError(exchange, 500, "Internal server error");
                 }
             } catch (Exception exception) {
+                ServerErrorLogger.log(exchange, exception);
                 sendError(exchange, 500, "Internal server error");
             }
         }

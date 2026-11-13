@@ -20,6 +20,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -442,6 +447,67 @@ class FilmHandlerTest {
         );
 
         assertEquals(404, response.statusCode());
+    }
+
+
+    @Test
+    void unexpectedDatabaseFailureReturnsGeneric500AndLogsDetails()
+            throws Exception {
+        Logger logger = Logger.getLogger(
+            "com.marquee.http.ServerErrorLogger"
+        );
+        List<LogRecord> records = new ArrayList<>();
+
+        Handler capture = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                records.add(record);
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+
+        logger.addHandler(capture);
+
+        try {
+            try (var connection = database.getConnection();
+                 Statement statement = connection.createStatement()) {
+                statement.executeUpdate("DROP TABLE films");
+            }
+
+            HttpResponse<String> response = request(
+                "GET", "/films", null
+            );
+
+            assertEquals(500, response.statusCode());
+            assertTrue(
+                response.body().contains("Internal server error"),
+                "Client should receive a generic server error"
+            );
+            assertFalse(
+                response.body().toLowerCase().contains("no such table"),
+                "Database details must not leak into the response"
+            );
+
+            assertTrue(
+                records.stream().anyMatch(record ->
+                    record.getMessage().contains("method=GET")
+                    && record.getMessage().contains("path=/films")
+                    && record.getThrown() instanceof java.sql.SQLException
+                    && record.getThrown().getMessage()
+                        .toLowerCase().contains("no such table")
+                ),
+                "Server log should contain request context and SQL exception"
+            );
+        } finally {
+            logger.removeHandler(capture);
+        }
     }
 
     private JsonNode createFilm(String title, int year) throws Exception {
