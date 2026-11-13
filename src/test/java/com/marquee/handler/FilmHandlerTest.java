@@ -709,6 +709,28 @@ class FilmHandlerTest {
         assertEquals(404, response.statusCode());
     }
 
+    @Test
+    void listFilmsTreatsSqlInjectionPayloadAsLiteralTitle() throws Exception {
+        createFilm("Arrival", 2016);
+        createFilm("Dune", 2021);
+
+        // This must be treated as a literal title filter, not SQL.
+        HttpResponse<String> filtered = request(
+            "GET", "/films?title=%27%20OR%201%3D1%20--", null
+        );
+
+        assertEquals(200, filtered.statusCode());
+        assertEquals(0, json(filtered).get("total").asInt());
+        assertEquals(0, json(filtered).get("films").size());
+
+        // Confirm the attempted injection did not affect stored records.
+        HttpResponse<String> allFilms = request("GET", "/films", null);
+
+        assertEquals(200, allFilms.statusCode());
+        assertEquals(2, json(allFilms).get("total").asInt());
+        assertEquals(2, json(allFilms).get("films").size());
+    }
+
     private int createFilmId(String title, int year) throws Exception {
         HttpResponse<String> response = request(
             "POST",
