@@ -1,0 +1,2 @@
+ALTER TABLE screenings
+ADD COLUMN room TEXT;
