@@ -99,10 +99,27 @@ The original Marquee improvement was carried forward into Final Cut.
 The shared reader and its validation behaviour were implemented and tested,
 addressing the outstanding request-body handling work.
 
-### Historical record
+### Historical record and chronology
 
-The Marquee retrospective was conducted and its action was discussed.
-The available Git history does not contain a separate committed copy of
-the original retrospective notes. This does not change the fact that the
-retrospective took place; it means the original written record has not
-been located in the repository history.
+The Marquee retrospective took place before Final Cut implementation.
+The original retrospective minutes have not been recovered, and the
+available Git history does not contain a separate pre-Final-Cut commit
+containing those notes.
+
+The following implementation chronology is verifiable from Git history:
+
+| Event | Commit | Date |
+|---|---|---|
+| Shared request-body reader implemented | `ae40f26` | 6 November 2026 |
+| First identified Final Cut migration implementation | `dfb4ac7` | 7 November 2026 |
+| Final Cut retrospective document created | `f9253f4` | 14 November 2026 |
+| Marquee retrospective follow-up documented | `d7e74b8` | 15 November 2026 |
+
+The request-body reader implementation therefore predates the identified
+Final Cut migration work. This provides evidence that the improvement
+was carried forward from the earlier Marquee work.
+
+The Marquee retrospective section in this document is a reconstruction
+based on the available project history and the retrospective action
+previously discussed. It is not represented as the original meeting
+minutes or as a document committed before Final Cut began.
