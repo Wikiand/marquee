@@ -172,6 +172,54 @@ class FilmHandlerTest {
     }
 
     @Test
+    void listFilmsFiltersByGenreNameCaseInsensitively() throws Exception {
+        int sciFiId = createGenreId("Sci-Fi");
+        int dramaId = createGenreId("Drama");
+
+        request(
+            "POST",
+            "/films",
+            """
+            {"title":"Arrival","year":2016,"genreIds":[%d]}
+            """.formatted(sciFiId)
+        );
+
+        request(
+            "POST",
+            "/films",
+            """
+            {"title":"Dune","year":2021,"genreIds":[%d]}
+            """.formatted(sciFiId)
+        );
+
+        request(
+            "POST",
+            "/films",
+            """
+            {"title":"The Father","year":2020,"genreIds":[%d]}
+            """.formatted(dramaId)
+        );
+
+        HttpResponse<String> response = request(
+            "GET", "/films?genre=sCi-Fi", null
+        );
+
+        assertEquals(200, response.statusCode());
+
+        JsonNode body = json(response);
+        JsonNode films = body.get("films");
+
+        assertEquals(2, body.get("total").asInt());
+        assertEquals(2, films.size());
+
+        assertEquals("Arrival", films.get(0).get("title").asText());
+        assertEquals("Dune", films.get(1).get("title").asText());
+
+        assertTrue(hasGenre(films.get(0), sciFiId, "Sci-Fi"));
+        assertTrue(hasGenre(films.get(1), sciFiId, "Sci-Fi"));
+    }
+
+    @Test
     void listFilmsRejectsInvalidPagination() throws Exception {
         HttpResponse<String> response = request(
             "GET", "/films?page=0", null
