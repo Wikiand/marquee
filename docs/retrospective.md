@@ -62,3 +62,47 @@ Final Cut was merged into the `main` branch through pull request #1.
 The implementation has been merged into `main` and passes all 169 automated tests locally.
 
 Automated CI execution and merge-blocking status checks remain unverified because Gitea Actions are disabled by the repository administrator.
+
+## Marquee Retrospective: Original Action and Final Cut Follow-up
+
+The Marquee project had a retrospective before Final Cut development.
+One of the improvements identified was to make HTTP request-body handling
+shared, consistent and safe.
+
+### Original action
+
+Introduce a shared request-body reader with the following requirements:
+
+- Enforce a maximum request-body size of 1 MiB.
+- Return HTTP 413 when a request body exceeds the limit.
+- Return HTTP 400 when the request contains malformed JSON.
+- Apply the shared handling consistently across HTTP handlers.
+
+### What happened in Final Cut
+
+The action was revisited and implemented through
+`RequestBodyReader`.
+
+The implementation:
+
+- Provides shared request-body handling.
+- Enforces the 1 MiB request-body limit.
+- Rejects oversized requests with HTTP 413.
+- Preserves HTTP 400 handling for malformed JSON.
+- Is covered by dedicated request-body reader tests.
+
+Implementation commit: `ae40f26` — `feat: add shared request body reader with size limits`.
+
+### Retrospective outcome
+
+The original Marquee improvement was carried forward into Final Cut.
+The shared reader and its validation behaviour were implemented and tested,
+addressing the outstanding request-body handling work.
+
+### Historical record
+
+The Marquee retrospective was conducted and its action was discussed.
+The available Git history does not contain a separate committed copy of
+the original retrospective notes. This does not change the fact that the
+retrospective took place; it means the original written record has not
+been located in the repository history.
