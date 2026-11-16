@@ -25,23 +25,60 @@ Maven dependency caching, and runs:
 
 `mvn --batch-mode clean verify`
 
-A GitHub Actions workflow is also present under
-`.github/workflows/ci.yml` for the GitHub-hosted repository.
+A GitHub Actions workflow is also maintained under
+`.github/workflows/ci.yml` for the GitHub-hosted repository. It uses
+Java 17 and runs the same Maven verification command on pushes and
+pull requests targeting `master` or `main`.
+
+GitHub Actions can provide supplementary evidence of automated
+verification, but it does not automatically enforce merge protection
+on the Gitea repository.
 
 ## Consequences
 
 - The same Maven verification lifecycle can be run locally and in CI.
-- Pushes and pull requests targeting `main` can trigger automated checks.
+- Pushes and pull requests can trigger automated checks on supported
+  hosting platforms.
 - CI results provide evidence of build and test status.
 - Repository branch protection and required status checks must be
-  configured separately in Gitea.
-- The existence of a workflow file alone does not prove that a workflow
-  has executed successfully.
+  configured separately on each hosting platform.
+- A successful GitHub Actions run does not prove that Gitea Actions
+  executed or that Gitea merge protection is enabled.
+- The existence of a workflow file alone does not prove that a
+  workflow has executed successfully.
 
 ## Verification
 
-Verify the workflow in the Gitea Actions interface after a push or
-pull request. Confirm that the run uses Java 17 and completes
-`mvn --batch-mode clean verify` successfully.
+### Local verification
 
-Verify branch protection separately in repository settings.
+On 16 November 2026, the project completed:
+
+`mvn --batch-mode clean verify`
+
+Results:
+
+- Java 17 project build completed successfully.
+- 170 tests executed.
+- 0 failures.
+- 0 errors.
+- 0 skipped.
+- JaCoCo analysed 24 classes.
+
+### GitHub Actions verification
+
+On 16 November 2026, the GitHub Actions workflow
+`Final Cut CI` completed successfully for pull request #13:
+
+https://github.com/Wikiand/marquee/pull/13
+
+The workflow executed the Maven verification job using the configured
+Java 17 environment.
+
+### Gitea verification and merge protection
+
+Gitea Actions execution remains unverified because Actions support
+is disabled by the Gitea instance administrator.
+
+Gitea branch protection and required status checks must also be
+verified separately in repository settings. GitHub CI success must
+not be presented as evidence of Gitea merge protection.
