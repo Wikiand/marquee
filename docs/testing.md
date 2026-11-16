@@ -1,60 +1,199 @@
-# API Testing
+# Final Cut — Testing and Demonstration Guide
 
-## Prerequisites
+## 1. Prerequisites
 
-- Java 17 or compatible JDK
-- Maven
-- Postman
+- Java Development Kit 17
+- Apache Maven
+- Git
+- Postman or curl for manual HTTP testing
+- SQLite command-line tools for optional database inspection
 
-## Run automated tests
+## 2. Run the automated verification suite
 
 From the repository root:
+
+```bash
+mvn --batch-mode clean verify
+```
+
+This compiles the application, executes the automated tests, and
+generates the JaCoCo coverage report.
+
+Open the report at:
+
+```text
+target/site/jacoco/index.html
+```
+
+To run tests without generating the full verification report:
 
 ```bash
 mvn test
 ```
 
-## Start the API
+To run a specific test class:
 
-Build the runtime classpath:
+```bash
+mvn -Dtest=MigrationRunnerTest test
+```
+
+## 3. Start the API locally
+
+Build the runtime dependency classpath:
 
 ```bash
 mvn dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 ```
 
-Start Marquee:
+Start the application:
 
 ```bash
 java -cp "target/classes:$(cat target/classpath.txt)" com.marquee.Main
 ```
 
-The API listens at `http://localhost:8080`.
+The API listens on port 8080 by default.
 
-Check health:
+Check its health:
 
 ```bash
 curl -i http://localhost:8080/health
 ```
 
-## Run the Postman collection
+## 4. Fresh database and migration demonstration
 
-1. Open Postman and choose **Import**.
-2. Import `postman/Marquee.postman_collection.json`.
-3. Keep the `baseUrl` collection variable set to `http://localhost:8080`, unless the server uses another address.
-4. Start Marquee.
-5. Run the collection using Postman's Collection Runner.
+Use a new database path so the demonstration does not modify an
+existing development database:
 
-The collection contains 47 requests covering API endpoints, successful operations, and input-validation error cases. The latest verified run executed 97 assertions with zero failures.
+```bash
+rm -f /tmp/final-cut-fresh.db
 
-## API conventions
+MARQUEE_DB=/tmp/final-cut-fresh.db \
+  java -cp "target/classes:$(cat target/classpath.txt)" com.marquee.Main
+```
 
-- Film endpoints use `/films`; genre endpoints use `/genres`; screening endpoints use `/screenings`.
-- Film filtering supports `genre`, `title`, `year`, `page`, and `per_page`.
-- Screening filtering supports `film_id`, `venue`, `date`, `page`, and `per_page`.
-- Film genre associations can be managed through `POST /films/{id}/genres` with a `genre_id` request field and `DELETE /films/{id}/genres/{genre_id}`. Film creation and updates also accept `genreIds`.
-- Error responses use an `error` object containing `code`, `message`, and `details`.
+The application initializes the database through its versioned
+migration resources.
 
-## Troubleshooting
+In another terminal, inspect the migration history:
 
-- If Postman reports a connection error, check that Marquee is running on the configured port.
-- If a response differs from an assertion, compare it with the handler implementation and update the test to match the intended API contract.
+```bash
+sqlite3 /tmp/final-cut-fresh.db \
+  'SELECT version, description FROM schema_migrations ORDER BY version;'
+```
+
+Expected migration versions are 1 through 5.
+
+Stop the application and start it again using the same database path.
+The migrations should not be applied a second time.
+
+## 5. SQL injection demonstration
+
+Use a harmless input containing SQL syntax as data:
+
+```bash
+curl -i --get \
+  --data-urlencode "title=' OR 1=1 --" \
+  http://localhost:8080/films
+```
+
+The input should be treated as a filter value, not executable SQL.
+The response should follow the endpoint's normal filtering behavior.
+
+This demonstration supplements automated tests; it does not replace
+reviewing repository queries to confirm that user-controlled values
+are bound through prepared statements.
+
+## 6. Structured request logging demonstration
+
+Send a request:
+
+```bash
+curl -i http://localhost:8080/health
+```
+
+Inspect the application output. The request log should contain a JSON
+object with:
+
+- `timestamp`
+- `method`
+- `path`
+- `status`
+- `duration_ms`
+
+The request body should not appear in the request log.
+
+## 7. Unexpected server-error demonstration
+
+Unexpected failures should produce a generic HTTP 500 response rather
+than exposing SQL messages, stack traces, or internal implementation
+details to the client.
+
+The automated handler tests exercise this behavior and verify that
+internal diagnostic details are logged server-side.
+
+Use the automated test as the repeatable demonstration:
+
+```bash
+mvn -Dtest=FilmHandlerTest#unexpectedDatabaseFailureReturnsGeneric500AndLogsDetails test
+```
+
+Do not damage a development database to simulate a production failure.
+
+## 8. Rollback and migration failure tests
+
+Run the migration tests:
+
+```bash
+mvn -Dtest=MigrationRunnerTest test
+```
+
+These tests cover migration initialization, version history,
+schema evolution, data preservation, and failure rollback.
+
+The rollback scenarios should verify database state after failure,
+not merely that an exception was thrown.
+
+## 9. Postman collection
+
+Import:
+
+`postman/Marquee.postman_collection.json`
+
+Set the collection's `baseUrl` variable to:
+
+`http://localhost:8080`
+
+Start the API and run the collection using Postman's Collection Runner.
+
+Review the actual Collection Runner output when recording request and
+assertion counts. Do not rely on historical counts in documentation.
+
+## 10. Continuous integration
+
+The Gitea workflow is located at:
+
+`.gitea/workflows/ci.yaml`
+
+It is configured to run the Maven verification lifecycle for pushes
+and pull requests targeting `main`.
+
+Verify actual execution in the Gitea Actions interface. A successful
+local build does not establish that Gitea CI has run.
+
+Branch protection and required status checks must be verified
+separately in repository settings.
+
+## 11. Evidence to retain
+
+For a project demonstration or review, retain:
+
+1. Output from `mvn --batch-mode clean verify`.
+2. The JaCoCo HTML coverage report.
+3. The migration history query from a fresh database.
+4. A structured JSON request log entry.
+5. Automated test output for generic 500 handling.
+6. Automated test output for migration rollback.
+7. A successful Gitea Actions run.
+
+Record actual results and dates. Do not claim a CI run, branch
+protection setting, or Postman assertion count without verifying it.

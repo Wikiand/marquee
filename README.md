@@ -1,6 +1,5 @@
 # Marquee
 
-[![Marquee CI](https://github.com/Wikiand/marquee/actions/workflows/ci.yml/badge.svg)](https://github.com/Wikiand/marquee/actions/workflows/ci.yml)
 
 **A lightweight REST API for managing films, genres, and cinema screenings.**
 
@@ -212,25 +211,28 @@ Ensure the database directory exists and is writable before starting the applica
 
 ## Automated Testing
 
-Marquee uses JUnit 5 to test HTTP handlers and service-layer logic.
+Marquee uses JUnit 5 for automated tests covering HTTP handlers,
+service behavior, database operations, migrations, and error handling.
 
-The suite covers CRUD operations, filtering, pagination, input validation, film-genre associations, and error handling.
-
-Run the complete verification suite:
+Run the complete verification lifecycle, including tests and the
+JaCoCo coverage report:
 
 ```bash
 mvn --batch-mode clean verify
 ```
 
-Latest verified local result: **139 tests passed, 0 failures, 0 errors, 0 skipped.**
+The JaCoCo HTML report is generated at:
 
-See the [Testing Guide](docs/testing.md) for additional instructions.
+`target/site/jacoco/index.html`
 
+See the [Testing Guide](docs/testing.md) for test execution,
+integration checks, and demonstration procedures.
 ## Project Documentation
 
 - [API Reference](docs/api.md) — detailed endpoint documentation.
 
 - [Testing Guide](docs/testing.md) — instructions for running and testing the API.
-- [Design Decisions](docs/design-decisions.md) — architectural and implementation decisions.
+- [Design Decisions](docs/design-decisions.md) — architecture decision index.
+- [Architecture Decision Records](docs/adr/) — detailed migration, logging, CI, and testing decisions.
 - [Entity Relationship Diagram](docs/erd.mmd) — database relationships.
 - [Postman Collection](postman/Marquee.postman_collection.json) — API requests for manual testing.

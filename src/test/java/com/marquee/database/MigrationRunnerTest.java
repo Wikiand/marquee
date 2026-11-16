@@ -1,4 +1,3 @@
-
 package com.marquee.database;
 
 import org.junit.jupiter.api.Test;
@@ -22,25 +21,88 @@ class MigrationRunnerTest {
     Path tempDir;
 
     @Test
+    void migrationSqlFilesArePackagedAndNonEmpty() throws Exception {
+        List<String> resources = List.of(
+            "migrations/001_create_films_and_genres.sql",
+            "migrations/002_create_film_genres.sql",
+            "migrations/003_create_screenings.sql",
+            "migrations/004_create_database_indexes.sql",
+            "migrations/005_add_screening_room.sql"
+        );
+
+        for (String resource : resources) {
+            try (var input = MigrationRunner.class
+                    .getClassLoader()
+                    .getResourceAsStream(resource)) {
+
+                assertNotNull(input, "Missing resource: " + resource);
+                assertTrue(input.readAllBytes().length > 0);
+            }
+        }
+    }
+
+    @Test
+    void sqlSplitterPreservesSemicolonsInsideQuotedValuesAndIdentifiers()
+            throws Exception {
+
+        String script =
+            "INSERT INTO films (title) VALUES ('Film; sequel');\n"
+            + "SELECT \"column;name\" FROM films;\n"
+            + "SELECT `another;name` FROM films;\n"
+            + "SELECT [bracket;name] FROM films;";
+
+        assertEquals(
+            List.of(
+                "INSERT INTO films (title) VALUES ('Film; sequel')",
+                "SELECT \"column;name\" FROM films",
+                "SELECT `another;name` FROM films",
+                "SELECT [bracket;name] FROM films"
+            ),
+            MigrationRunner.splitSqlStatements(script)
+        );
+    }
+
+    @Test
+    void sqlSplitterIgnoresSemicolonsInsideComments() throws Exception {
+        String script =
+            "SELECT 1 /* comment; still comment */;\n"
+            + "SELECT 2 -- comment; still comment\n"
+            + ";";
+
+        assertEquals(
+            List.of(
+                "SELECT 1 /* comment; still comment */",
+                "SELECT 2 -- comment; still comment"
+            ),
+            MigrationRunner.splitSqlStatements(script)
+        );
+    }
+
+    @Test
+    void sqlSplitterRejectsUnterminatedQuotedValues() {
+        assertThrows(
+            SQLException.class,
+            () -> MigrationRunner.splitSqlStatements(
+                "INSERT INTO films (title) VALUES ('unfinished)"
+            )
+        );
+    }
+
+    @Test
     void freshDatabaseAppliesAllMigrations() throws Exception {
         Database database = new Database(tempDir.resolve("fresh.db"));
 
         database.initialize();
 
-        assertEquals(
-            List.of(1, 2, 3, 4, 5),
-            appliedVersions(database)
-        );
+        assertEquals(List.of(1, 2, 3, 4, 5), appliedVersions(database));
 
         assertTrue(objectExists(database, "table", "films"));
         assertTrue(objectExists(database, "table", "genres"));
         assertTrue(objectExists(database, "table", "film_genres"));
         assertTrue(objectExists(database, "table", "screenings"));
-
         assertTrue(objectExists(
             database, "index", "idx_film_genres_genre"
         ));
-
         assertTrue(objectExists(
             database, "index", "idx_screenings_film"
         ));
@@ -50,15 +112,12 @@ class MigrationRunnerTest {
     void repeatedInitializationDoesNotDuplicateMigrations()
             throws Exception {
 
-        Database database = new Database(
-            tempDir.resolve("repeated.db")
-        );
+        Database database = new Database(tempDir.resolve("repeated.db"));
 
         database.initialize();
 
         try (Connection connection = database.getConnection();
              Statement statement = connection.createStatement()) {
-
             statement.executeUpdate("""
                 INSERT INTO films (title, year)
                 VALUES ('Persistent Film', 2025)
@@ -68,30 +127,19 @@ class MigrationRunnerTest {
         database.initialize();
         database.initialize();
 
-        assertEquals(
-            List.of(1, 2, 3, 4, 5),
-            appliedVersions(database)
-        );
-
+        assertEquals(List.of(1, 2, 3, 4, 5), appliedVersions(database));
         assertEquals(1, countRows(database, "films"));
     }
 
     @Test
-    void adoptsLegacyDatabaseWithoutLosingRecords()
-            throws Exception {
+    void adoptsLegacyDatabaseWithoutLosingRecords() throws Exception {
+        Path path = tempDir.resolve("legacy.db");
+        createLegacyDatabase(path);
 
-        Path databasePath = tempDir.resolve("legacy.db");
-
-        createLegacyDatabase(databasePath);
-
-        Database database = new Database(databasePath);
+        Database database = new Database(path);
         database.initialize();
 
-        assertEquals(
-            List.of(1, 2, 3, 4, 5),
-            appliedVersions(database)
-        );
-
+        assertEquals(List.of(1, 2, 3, 4, 5), appliedVersions(database));
         assertEquals(1, countRows(database, "films"));
         assertEquals(1, countRows(database, "genres"));
         assertEquals(1, countRows(database, "film_genres"));
@@ -100,9 +148,7 @@ class MigrationRunnerTest {
         try (Connection connection = database.getConnection();
              Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery("""
-                 SELECT title, year
-                 FROM films
-                 WHERE film_id = 7
+                 SELECT title, year FROM films WHERE film_id = 7
                  """)) {
 
             assertTrue(resultSet.next());
@@ -111,23 +157,17 @@ class MigrationRunnerTest {
         }
     }
 
-
     @Test
     void appliesEvolutionMigrationToExistingVersionFourDatabase()
             throws Exception {
 
-        Path databasePath = tempDir.resolve("version-four.db");
+        Path path = tempDir.resolve("version-four.db");
+        createVersionFourDatabase(path);
 
-        createVersionFourDatabase(databasePath);
-
-        Database database = new Database(databasePath);
+        Database database = new Database(path);
         database.initialize();
 
-        assertEquals(
-            List.of(1, 2, 3, 4, 5),
-            appliedVersions(database)
-        );
-
+        assertEquals(List.of(1, 2, 3, 4, 5), appliedVersions(database));
         assertEquals(1, countRows(database, "films"));
         assertEquals(1, countRows(database, "genres"));
         assertEquals(1, countRows(database, "film_genres"));
@@ -137,8 +177,7 @@ class MigrationRunnerTest {
              Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery("""
                  SELECT film_id, venue, screening_time, room
-                 FROM screenings
-                 WHERE screening_id = 5
+                 FROM screenings WHERE screening_id = 5
                  """)) {
 
             assertTrue(resultSet.next());
@@ -171,8 +210,7 @@ class MigrationRunnerTest {
         try (Connection connection = database.getConnection();
              PreparedStatement statement =
                     connection.prepareStatement("""
-                        SELECT room
-                        FROM screenings
+                        SELECT room FROM screenings
                         WHERE screening_time = ?
                         """)) {
 
@@ -189,12 +227,10 @@ class MigrationRunnerTest {
     void failedMigrationRollsBackChangesAndIsNotRecorded()
             throws Exception {
 
-        Path databasePath = tempDir.resolve("failed-migration.db");
+        Path path = tempDir.resolve("failed-migration.db");
 
         try (Connection connection =
-                DriverManager.getConnection(
-                    "jdbc:sqlite:" + databasePath.toAbsolutePath()
-                );
+                DriverManager.getConnection("jdbc:sqlite:" + path);
              Statement statement = connection.createStatement()) {
 
             statement.execute("""
@@ -219,90 +255,61 @@ class MigrationRunnerTest {
                 """);
         }
 
-        Database database = new Database(databasePath);
+        Database database = new Database(path);
 
         SQLException exception = assertThrows(
-            SQLException.class,
-            database::initialize
+            SQLException.class, database::initialize
         );
 
-        assertTrue(
-            exception.getMessage().contains(
-                "Simulated migration history write failure"
-            )
-        );
+        assertTrue(exception.getMessage().contains(
+            "Simulated migration history write failure"
+        ));
 
-        assertEquals(
-            List.of(1, 2, 3),
-            appliedVersions(database)
-        );
-
+        assertEquals(List.of(1, 2, 3), appliedVersions(database));
         assertFalse(objectExists(
             database, "index", "idx_film_genres_genre"
         ));
-
         assertFalse(objectExists(
             database, "index", "idx_screenings_film"
         ));
     }
 
     @Test
-    void rejectsUnsupportedFutureMigrationVersion()
-            throws Exception {
-
-        Path databasePath = tempDir.resolve("future-version.db");
-
-        createMigrationHistory(databasePath, 99);
-
-        Database database = new Database(databasePath);
+    void rejectsUnsupportedFutureMigrationVersion() throws Exception {
+        Path path = tempDir.resolve("future-version.db");
+        createMigrationHistory(path, 99);
 
         SQLException exception = assertThrows(
             SQLException.class,
-            database::initialize
+            () -> new Database(path).initialize()
         );
 
-        assertTrue(
-            exception.getMessage().contains(
-                "unsupported migration version: 99"
-            )
-            || exception.getMessage().contains(
-                "Unsupported migration version: 99"
-            )
-        );
+        assertTrue(exception.getMessage().contains(
+            "unsupported migration version: 99"
+        ));
     }
 
     @Test
-    void rejectsIncompleteMigrationHistory()
-            throws Exception {
-
-        Path databasePath = tempDir.resolve("incomplete-history.db");
-
-        createMigrationHistory(databasePath, 2);
-
-        Database database = new Database(databasePath);
+    void rejectsIncompleteMigrationHistory() throws Exception {
+        Path path = tempDir.resolve("incomplete-history.db");
+        createMigrationHistory(path, 2);
 
         SQLException exception = assertThrows(
             SQLException.class,
-            database::initialize
+            () -> new Database(path).initialize()
         );
 
-        assertTrue(
-            exception.getMessage().contains(
-                "incomplete at version 2"
-            )
-        );
+        assertTrue(exception.getMessage().contains(
+            "incomplete at version 2"
+        ));
     }
 
     @Test
-    void rejectsExistingTableWithIncompatibleColumns()
-            throws Exception {
-
-        Path databasePath = tempDir.resolve("incompatible.db");
+    void rejectsExistingTableWithIncompatibleColumns() throws Exception {
+        Path path = tempDir.resolve("incompatible.db");
 
         try (Connection connection =
-                DriverManager.getConnection(
-                    "jdbc:sqlite:" + databasePath.toAbsolutePath()
-                );
+                DriverManager.getConnection("jdbc:sqlite:" + path);
              Statement statement = connection.createStatement()) {
 
             statement.execute("""
@@ -313,31 +320,136 @@ class MigrationRunnerTest {
                 """);
         }
 
-        Database database = new Database(databasePath);
-
         SQLException exception = assertThrows(
             SQLException.class,
-            database::initialize
+            () -> new Database(path).initialize()
         );
 
         assertTrue(exception.getMessage().contains("films"));
         assertTrue(exception.getMessage().contains("title"));
     }
 
-    private void createLegacyDatabase(Path databasePath)
-            throws SQLException {
+
+    @Test
+    void sqlSplitterSupportsEscapedQuoteAndBracketDelimiters()
+            throws Exception {
+
+        String script =
+            "SELECT 'it''s; fine';\n"
+            + "SELECT \"a\"\";b\";\n"
+            + "SELECT `a``;b`;\n"
+            + "SELECT [a]];b];";
+
+        assertEquals(
+            List.of(
+                "SELECT 'it''s; fine'",
+                "SELECT \"a\"\";b\"",
+                "SELECT `a``;b`",
+                "SELECT [a]];b]"
+            ),
+            MigrationRunner.splitSqlStatements(script)
+        );
+    }
+
+    @Test
+    void sqlSplitterRejectsUnterminatedBlockComments() {
+        assertThrows(
+            SQLException.class,
+            () -> MigrationRunner.splitSqlStatements(
+                "SELECT 1 /* unfinished comment"
+            )
+        );
+    }
+
+    @Test
+    void sqlSplitterRejectsUnterminatedBracketIdentifiers() {
+        assertThrows(
+            SQLException.class,
+            () -> MigrationRunner.splitSqlStatements(
+                "SELECT [unfinished_identifier"
+            )
+        );
+    }
+
+    @Test
+    void rejectsNegativeMigrationVersion() throws Exception {
+        Path path = tempDir.resolve("negative-version.db");
+        createMigrationHistory(path, -1);
+
+        SQLException exception = assertThrows(
+            SQLException.class,
+            () -> new Database(path).initialize()
+        );
+
+        assertTrue(exception.getMessage().contains(
+            "unsupported migration version: -1"
+        ));
+    }
+
+    @Test
+    void rejectsViewWhereExistingTableIsExpected() throws Exception {
+        Path path = tempDir.resolve("films-view.db");
 
         try (Connection connection =
-                DriverManager.getConnection(
-                    "jdbc:sqlite:" + databasePath.toAbsolutePath()
-                );
+                DriverManager.getConnection("jdbc:sqlite:" + path);
+             Statement statement = connection.createStatement()) {
+
+            statement.execute("""
+                CREATE VIEW films AS
+                SELECT
+                    1 AS film_id,
+                    'Example' AS title,
+                    2025 AS year,
+                    NULL AS description,
+                    '2025-01-01' AS created_at
+                """);
+        }
+
+        SQLException exception = assertThrows(
+            SQLException.class,
+            () -> new Database(path).initialize()
+        );
+
+        assertTrue(exception.getMessage().contains(
+            "Expected database object 'films' to be a table"
+        ));
+    }
+
+    @Test
+    void migrationTableCreationFailureIsReportedAndRolledBack()
+            throws Exception {
+
+        Path path = tempDir.resolve("migration-table-conflict.db");
+
+        try (Connection connection =
+                DriverManager.getConnection("jdbc:sqlite:" + path);
+             Statement statement = connection.createStatement()) {
+
+            statement.execute("""
+                CREATE VIEW schema_migrations AS
+                SELECT 1 AS version,
+                       'conflict' AS description,
+                       '2025-01-01' AS applied_at
+                """);
+        }
+
+        SQLException exception = assertThrows(
+            SQLException.class,
+            () -> new Database(path).initialize()
+        );
+
+        assertNotNull(exception.getMessage());
+    }
+
+    private void createLegacyDatabase(Path path) throws SQLException {
+        try (Connection connection =
+                DriverManager.getConnection("jdbc:sqlite:" + path);
              Statement statement = connection.createStatement()) {
 
             statement.execute("""
                 CREATE TABLE films (
                     film_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL
-                        CHECK (length(trim(title)) > 0),
+                    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
                     year INTEGER NOT NULL CHECK (year > 0),
                     description TEXT,
                     created_at TEXT NOT NULL DEFAULT
@@ -369,8 +481,7 @@ class MigrationRunnerTest {
                 CREATE TABLE screenings (
                     screening_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     film_id INTEGER NOT NULL,
-                    venue TEXT NOT NULL
-                        CHECK (length(trim(venue)) > 0),
+                    venue TEXT NOT NULL CHECK (length(trim(venue)) > 0),
                     screening_time TEXT NOT NULL,
                     FOREIGN KEY (film_id)
                         REFERENCES films(film_id) ON DELETE CASCADE
@@ -394,35 +505,22 @@ class MigrationRunnerTest {
 
             statement.executeUpdate("""
                 INSERT INTO screenings (
-                    screening_id,
-                    film_id,
-                    venue,
-                    screening_time
+                    screening_id, film_id, venue, screening_time
                 )
                 VALUES (
-                    5,
-                    7,
-                    'Nairobi Cinema',
-                    '2026-11-07T18:00:00'
+                    5, 7, 'Nairobi Cinema', '2026-11-07T18:00:00'
                 )
                 """);
         }
     }
 
-
-    /*
-     * Builds a populated database at migration version 4.
-     * Initialization should apply only migration 5.
-     */
-    private void createVersionFourDatabase(Path databasePath)
+    private void createVersionFourDatabase(Path path)
             throws SQLException {
 
-        createLegacyDatabase(databasePath);
+        createLegacyDatabase(path);
 
         try (Connection connection =
-                DriverManager.getConnection(
-                    "jdbc:sqlite:" + databasePath.toAbsolutePath()
-                );
+                DriverManager.getConnection("jdbc:sqlite:" + path);
              Statement statement = connection.createStatement()) {
 
             statement.execute("""
@@ -468,15 +566,11 @@ class MigrationRunnerTest {
         }
     }
 
-    private void createMigrationHistory(
-            Path databasePath,
-            int version
-    ) throws SQLException {
+    private void createMigrationHistory(Path path, int version)
+            throws SQLException {
 
         try (Connection connection =
-                DriverManager.getConnection(
-                    "jdbc:sqlite:" + databasePath.toAbsolutePath()
-                );
+                DriverManager.getConnection("jdbc:sqlite:" + path);
              Statement statement = connection.createStatement()) {
 
             statement.execute("""
@@ -491,8 +585,7 @@ class MigrationRunnerTest {
             try (PreparedStatement insert =
                     connection.prepareStatement("""
                         INSERT INTO schema_migrations (
-                            version,
-                            description
+                            version, description
                         )
                         VALUES (?, ?)
                         """)) {
@@ -510,9 +603,7 @@ class MigrationRunnerTest {
         try (Connection connection = database.getConnection();
              Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery("""
-                 SELECT version
-                 FROM schema_migrations
-                 ORDER BY version
+                 SELECT version FROM schema_migrations ORDER BY version
                  """)) {
 
             List<Integer> versions = new ArrayList<>();
@@ -528,6 +619,7 @@ class MigrationRunnerTest {
     private int countRows(Database database, String table)
             throws SQLException {
 
+        // Only fixed table names from the test suite are passed here.
         String sql = "SELECT COUNT(*) FROM " + table;
 
         try (Connection connection = database.getConnection();
@@ -548,8 +640,7 @@ class MigrationRunnerTest {
         try (Connection connection = database.getConnection();
              PreparedStatement statement =
                     connection.prepareStatement("""
-                        SELECT 1
-                        FROM sqlite_master
+                        SELECT 1 FROM sqlite_master
                         WHERE type = ? AND name = ?
                         """)) {
 

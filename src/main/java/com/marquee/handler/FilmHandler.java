@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marquee.http.RequestBodyException;
 import com.marquee.http.RequestBodyReader;
+import com.marquee.http.ServerErrorLogger;
 import com.marquee.model.Film;
 import com.marquee.model.FilmInput;
 import com.marquee.service.FilmService;
@@ -121,8 +122,10 @@ public final class FilmHandler implements HttpHandler {
             } catch (IllegalArgumentException exception) {
                 sendError(exchange, 400, exception.getMessage());
             } catch (SQLException exception) {
-                sendError(exchange, 500, "Database operation failed");
+                ServerErrorLogger.log(exchange, exception);
+                sendError(exchange, 500, "Internal server error");
             } catch (Exception exception) {
+                ServerErrorLogger.log(exchange, exception);
                 sendError(exchange, 500, "Internal server error");
             }
         }

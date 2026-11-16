@@ -20,6 +20,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -167,6 +172,54 @@ class FilmHandlerTest {
     }
 
     @Test
+    void listFilmsFiltersByGenreNameCaseInsensitively() throws Exception {
+        int sciFiId = createGenreId("Sci-Fi");
+        int dramaId = createGenreId("Drama");
+
+        request(
+            "POST",
+            "/films",
+            """
+            {"title":"Arrival","year":2016,"genreIds":[%d]}
+            """.formatted(sciFiId)
+        );
+
+        request(
+            "POST",
+            "/films",
+            """
+            {"title":"Dune","year":2021,"genreIds":[%d]}
+            """.formatted(sciFiId)
+        );
+
+        request(
+            "POST",
+            "/films",
+            """
+            {"title":"The Father","year":2020,"genreIds":[%d]}
+            """.formatted(dramaId)
+        );
+
+        HttpResponse<String> response = request(
+            "GET", "/films?genre=sCi-Fi", null
+        );
+
+        assertEquals(200, response.statusCode());
+
+        JsonNode body = json(response);
+        JsonNode films = body.get("films");
+
+        assertEquals(2, body.get("total").asInt());
+        assertEquals(2, films.size());
+
+        assertEquals("Arrival", films.get(0).get("title").asText());
+        assertEquals("Dune", films.get(1).get("title").asText());
+
+        assertTrue(hasGenre(films.get(0), sciFiId, "Sci-Fi"));
+        assertTrue(hasGenre(films.get(1), sciFiId, "Sci-Fi"));
+    }
+
+    @Test
     void listFilmsRejectsInvalidPagination() throws Exception {
         HttpResponse<String> response = request(
             "GET", "/films?page=0", null
@@ -289,6 +342,220 @@ class FilmHandlerTest {
         HttpResponse<String> response = request("PATCH", "/films", "{}");
 
         assertEquals(405, response.statusCode());
+    }
+
+
+    @Test
+    void listFilmsUsesDefaultPagination() throws Exception {
+        createFilm("Arrival", 2016);
+
+        HttpResponse<String> response = request("GET", "/films", null);
+
+        assertEquals(200, response.statusCode());
+        JsonNode body = json(response);
+        assertEquals(1, body.get("page").asInt());
+        assertEquals(20, body.get("per_page").asInt());
+        assertEquals(1, body.get("total").asInt());
+    }
+
+    @Test
+    void listFilmsAcceptsQueryParameterWithoutEquals() throws Exception {
+        createFilm("Arrival", 2016);
+
+        HttpResponse<String> response = request(
+            "GET", "/films?title", null
+        );
+
+        assertEquals(200, response.statusCode());
+        assertEquals(1, json(response).get("films").size());
+    }
+
+    @Test
+    void listFilmsRejectsDuplicateQueryParameters() throws Exception {
+        HttpResponse<String> response = request(
+            "GET", "/films?title=Arrival&title=Dune", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void listFilmsRejectsInvalidQueryKey() throws Exception {
+        HttpResponse<String> response = request(
+            "GET", "/films?bad-key=value", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void listFilmsRejectsNonIntegerPage() throws Exception {
+        HttpResponse<String> response = request(
+            "GET", "/films?page=abc", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void patchFilmReturns405() throws Exception {
+        int filmId = createFilmId("Patch Film", 2024);
+
+        HttpResponse<String> response = request(
+            "PATCH", "/films/" + filmId, "{}"
+        );
+
+        assertEquals(405, response.statusCode());
+    }
+
+    @Test
+    void getFilmRejectsNestedPath() throws Exception {
+        int filmId = createFilmId("Nested Path Film", 2024);
+
+        HttpResponse<String> response = request(
+            "GET", "/films/" + filmId + "/extra", null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void updateFilmRejectsInvalidFieldTypes() throws Exception {
+        int filmId = createFilmId("Invalid Update", 2024);
+
+        HttpResponse<String> response = request(
+            "PUT",
+            "/films/" + filmId,
+            "{\"title\":\"Invalid Update\",\"year\":\"not-a-number\"}"
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void removingGenreFromMissingFilmReturns404() throws Exception {
+        int genreId = createGenreId("Existing Removal Genre");
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/999999/genres/" + genreId, null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void removingMissingGenreReturns404() throws Exception {
+        int filmId = createFilmId("Existing Removal Film", 2024);
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/" + filmId + "/genres/999999", null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void removingUnassignedGenreReturns404() throws Exception {
+        int filmId = createFilmId("Unassigned Genre Film", 2024);
+        int genreId = createGenreId("Unassigned Genre");
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/" + filmId + "/genres/" + genreId, null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void removingGenreWithInvalidFilmIdReturns400() throws Exception {
+        HttpResponse<String> response = request(
+            "DELETE", "/films/not-a-number/genres/1", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void removingGenreWithNonPositiveGenreIdReturns400() throws Exception {
+        int filmId = createFilmId("Non Positive Genre Film", 2024);
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/" + filmId + "/genres/0", null
+        );
+
+        assertEquals(400, response.statusCode());
+    }
+
+    @Test
+    void removingGenreWithMalformedRouteReturns404() throws Exception {
+        int filmId = createFilmId("Malformed Removal Route", 2024);
+
+        HttpResponse<String> response = request(
+            "DELETE", "/films/" + filmId + "/genres/1/extra", null
+        );
+
+        assertEquals(404, response.statusCode());
+    }
+
+
+    @Test
+    void unexpectedDatabaseFailureReturnsGeneric500AndLogsDetails()
+            throws Exception {
+        Logger logger = Logger.getLogger(
+            "com.marquee.http.ServerErrorLogger"
+        );
+        List<LogRecord> records = new ArrayList<>();
+
+        Handler capture = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                records.add(record);
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+
+        logger.addHandler(capture);
+
+        try {
+            try (var connection = database.getConnection();
+                 Statement statement = connection.createStatement()) {
+                statement.executeUpdate("DROP TABLE films");
+            }
+
+            HttpResponse<String> response = request(
+                "GET", "/films", null
+            );
+
+            assertEquals(500, response.statusCode());
+            assertTrue(
+                response.body().contains("Internal server error"),
+                "Client should receive a generic server error"
+            );
+            assertFalse(
+                response.body().toLowerCase().contains("no such table"),
+                "Database details must not leak into the response"
+            );
+
+            assertTrue(
+                records.stream().anyMatch(record ->
+                    record.getMessage().contains("method=GET")
+                    && record.getMessage().contains("path=/films")
+                    && record.getThrown() instanceof java.sql.SQLException
+                    && record.getThrown().getMessage()
+                        .toLowerCase().contains("no such table")
+                ),
+                "Server log should contain request context and SQL exception"
+            );
+        } finally {
+            logger.removeHandler(capture);
+        }
     }
 
     private JsonNode createFilm(String title, int year) throws Exception {
@@ -488,6 +755,28 @@ class FilmHandlerTest {
         );
 
         assertEquals(404, response.statusCode());
+    }
+
+    @Test
+    void listFilmsTreatsSqlInjectionPayloadAsLiteralTitle() throws Exception {
+        createFilm("Arrival", 2016);
+        createFilm("Dune", 2021);
+
+        // This must be treated as a literal title filter, not SQL.
+        HttpResponse<String> filtered = request(
+            "GET", "/films?title=%27%20OR%201%3D1%20--", null
+        );
+
+        assertEquals(200, filtered.statusCode());
+        assertEquals(0, json(filtered).get("total").asInt());
+        assertEquals(0, json(filtered).get("films").size());
+
+        // Confirm the attempted injection did not affect stored records.
+        HttpResponse<String> allFilms = request("GET", "/films", null);
+
+        assertEquals(200, allFilms.statusCode());
+        assertEquals(2, json(allFilms).get("total").asInt());
+        assertEquals(2, json(allFilms).get("films").size());
     }
 
     private int createFilmId(String title, int year) throws Exception {

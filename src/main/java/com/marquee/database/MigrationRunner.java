@@ -1,10 +1,14 @@
 package com.marquee.database;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -15,66 +19,35 @@ public final class MigrationRunner {
     private record Migration(
             int version,
             String description,
-            List<String> statements
+            String resourcePath
     ) {
     }
 
-    /*
-     * The original schema expected before applying any pending migrations.
-     * Keep this separate from the latest schema so older databases can
-     * pass validation and receive their pending migrations.
-     */
-    private static final Map<String, Set<String>> BASELINE_EXPECTED_COLUMNS =
-            Map.of(
+    private static final Map<String, Set<String>>
+            BASELINE_EXPECTED_COLUMNS = Map.of(
                 "films", Set.of(
-                    "film_id",
-                    "title",
-                    "year",
-                    "description",
-                    "created_at"
+                    "film_id", "title", "year",
+                    "description", "created_at"
                 ),
-                "genres", Set.of(
-                    "genre_id",
-                    "name"
-                ),
-                "film_genres", Set.of(
-                    "film_id",
-                    "genre_id"
-                ),
+                "genres", Set.of("genre_id", "name"),
+                "film_genres", Set.of("film_id", "genre_id"),
                 "screenings", Set.of(
-                    "screening_id",
-                    "film_id",
-                    "venue",
-                    "screening_time"
+                    "screening_id", "film_id",
+                    "venue", "screening_time"
                 )
             );
 
-    /*
-     * The complete schema after every migration has been applied.
-     */
-    private static final Map<String, Set<String>> LATEST_EXPECTED_COLUMNS =
-            Map.of(
+    private static final Map<String, Set<String>>
+            LATEST_EXPECTED_COLUMNS = Map.of(
                 "films", Set.of(
-                    "film_id",
-                    "title",
-                    "year",
-                    "description",
-                    "created_at"
+                    "film_id", "title", "year",
+                    "description", "created_at"
                 ),
-                "genres", Set.of(
-                    "genre_id",
-                    "name"
-                ),
-                "film_genres", Set.of(
-                    "film_id",
-                    "genre_id"
-                ),
+                "genres", Set.of("genre_id", "name"),
+                "film_genres", Set.of("film_id", "genre_id"),
                 "screenings", Set.of(
-                    "screening_id",
-                    "film_id",
-                    "venue",
-                    "screening_time",
-                    "room"
+                    "screening_id", "film_id",
+                    "venue", "screening_time", "room"
                 )
             );
 
@@ -82,83 +55,27 @@ public final class MigrationRunner {
         new Migration(
             1,
             "Create films and genres tables",
-            List.of(
-                """
-                CREATE TABLE IF NOT EXISTS films (
-                    film_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
-                    year INTEGER NOT NULL CHECK (year > 0),
-                    description TEXT,
-                    created_at TEXT NOT NULL DEFAULT
-                        (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-                )
-                """,
-                """
-                CREATE TABLE IF NOT EXISTS genres (
-                    genre_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE
-                        CHECK (length(trim(name)) > 0)
-                )
-                """
-            )
+            "migrations/001_create_films_and_genres.sql"
         ),
         new Migration(
             2,
             "Create film genres relationship table",
-            List.of(
-                """
-                CREATE TABLE IF NOT EXISTS film_genres (
-                    film_id INTEGER NOT NULL,
-                    genre_id INTEGER NOT NULL,
-                    PRIMARY KEY (film_id, genre_id),
-                    FOREIGN KEY (film_id)
-                        REFERENCES films(film_id) ON DELETE CASCADE,
-                    FOREIGN KEY (genre_id)
-                        REFERENCES genres(genre_id) ON DELETE CASCADE
-                )
-                """
-            )
+            "migrations/002_create_film_genres.sql"
         ),
         new Migration(
             3,
             "Create screenings table",
-            List.of(
-                """
-                CREATE TABLE IF NOT EXISTS screenings (
-                    screening_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    film_id INTEGER NOT NULL,
-                    venue TEXT NOT NULL
-                        CHECK (length(trim(venue)) > 0),
-                    screening_time TEXT NOT NULL,
-                    FOREIGN KEY (film_id)
-                        REFERENCES films(film_id) ON DELETE CASCADE
-                )
-                """
-            )
+            "migrations/003_create_screenings.sql"
         ),
         new Migration(
             4,
             "Create database indexes",
-            List.of(
-                """
-                CREATE INDEX IF NOT EXISTS idx_film_genres_genre
-                ON film_genres(genre_id, film_id)
-                """,
-                """
-                CREATE INDEX IF NOT EXISTS idx_screenings_film
-                ON screenings(film_id)
-                """
-            )
+            "migrations/004_create_database_indexes.sql"
         ),
         new Migration(
             5,
             "Add room to screenings",
-            List.of(
-                """
-                ALTER TABLE screenings
-                ADD COLUMN room TEXT
-                """
-            )
+            "migrations/005_add_screening_room.sql"
         )
     );
 
@@ -171,7 +88,8 @@ public final class MigrationRunner {
             validateExistingSchema(connection);
             createMigrationTable(connection);
 
-            Set<Integer> appliedVersions = getAppliedVersions(connection);
+            Set<Integer> appliedVersions =
+                getAppliedVersions(connection);
 
             validateMigrationHistory(appliedVersions);
 
@@ -183,15 +101,14 @@ public final class MigrationRunner {
 
             validateCompleteSchema(connection);
 
+        } catch (SQLException exception) {
+            rollback(connection, exception);
+            throw exception;
         } finally {
             connection.setAutoCommit(originalAutoCommit);
         }
     }
 
-    /*
-     * Existing databases only need to satisfy the original schema.
-     * Pending migrations are responsible for bringing them forward.
-     */
     private void validateExistingSchema(Connection connection)
             throws SQLException {
 
@@ -202,17 +119,12 @@ public final class MigrationRunner {
 
             if (databaseObjectExists(connection, table)) {
                 validateTableColumns(
-                    connection,
-                    table,
-                    entry.getValue()
+                    connection, table, entry.getValue()
                 );
             }
         }
     }
 
-    /*
-     * Once migrations finish, every column in the latest schema must exist.
-     */
     private void validateCompleteSchema(Connection connection)
             throws SQLException {
 
@@ -220,9 +132,7 @@ public final class MigrationRunner {
                 : LATEST_EXPECTED_COLUMNS.entrySet()) {
 
             validateTableColumns(
-                connection,
-                entry.getKey(),
-                entry.getValue()
+                connection, entry.getKey(), entry.getValue()
             );
         }
     }
@@ -270,6 +180,7 @@ public final class MigrationRunner {
 
         Set<String> actualColumns = new HashSet<>();
 
+        // Table names come exclusively from the fixed internal schema map.
         String sql = "PRAGMA table_info('" + table + "')";
 
         try (Statement statement = connection.createStatement();
@@ -282,8 +193,8 @@ public final class MigrationRunner {
 
         if (actualColumns.isEmpty()) {
             throw new SQLException(
-                "Database table '" + table + "' does not exist "
-                    + "or has no columns"
+                "Database table '" + table
+                    + "' does not exist or has no columns"
             );
         }
 
@@ -325,14 +236,12 @@ public final class MigrationRunner {
 
         Set<Integer> versions = new HashSet<>();
 
-        String sql = """
-            SELECT version
-            FROM schema_migrations
-            ORDER BY version
-            """;
-
         try (Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery(sql)) {
+             ResultSet resultSet = statement.executeQuery("""
+                 SELECT version
+                 FROM schema_migrations
+                 ORDER BY version
+                 """)) {
 
             while (resultSet.next()) {
                 versions.add(resultSet.getInt("version"));
@@ -350,7 +259,7 @@ public final class MigrationRunner {
         ).version();
 
         for (int version : appliedVersions) {
-            if (version > latestVersion || version <= 0) {
+            if (version <= 0 || version > latestVersion) {
                 throw new SQLException(
                     "Database contains unsupported migration version: "
                         + version
@@ -381,18 +290,18 @@ public final class MigrationRunner {
 
         try {
             try (Statement statement = connection.createStatement()) {
-                for (String sql : migration.statements()) {
+                for (String sql : readMigrationStatements(migration)) {
                     statement.execute(sql);
                 }
             }
 
-            String insertSql = """
-                INSERT INTO schema_migrations (version, description)
-                VALUES (?, ?)
-                """;
-
             try (PreparedStatement statement =
-                    connection.prepareStatement(insertSql)) {
+                    connection.prepareStatement("""
+                        INSERT INTO schema_migrations (
+                            version, description
+                        )
+                        VALUES (?, ?)
+                        """)) {
 
                 statement.setInt(1, migration.version());
                 statement.setString(2, migration.description());
@@ -405,6 +314,174 @@ public final class MigrationRunner {
             rollback(connection, exception);
             throw exception;
         }
+    }
+
+    private List<String> readMigrationStatements(Migration migration)
+            throws SQLException {
+
+        try (InputStream input = MigrationRunner.class
+                .getClassLoader()
+                .getResourceAsStream(migration.resourcePath())) {
+
+            if (input == null) {
+                throw new SQLException(
+                    "Migration resource not found: "
+                        + migration.resourcePath()
+                );
+            }
+
+            String script = new String(
+                input.readAllBytes(),
+                StandardCharsets.UTF_8
+            );
+
+            List<String> statements = splitSqlStatements(script);
+
+            if (statements.isEmpty()) {
+                throw new SQLException(
+                    "Migration contains no SQL statements: "
+                        + migration.resourcePath()
+                );
+            }
+
+            return statements;
+
+        } catch (IOException exception) {
+            throw new SQLException(
+                "Could not read migration resource: "
+                    + migration.resourcePath(),
+                exception
+            );
+        }
+    }
+
+    /*
+     * Splits SQL statements while respecting quoted values,
+     * quoted identifiers, bracket identifiers and comments.
+     */
+    static List<String> splitSqlStatements(String script)
+            throws SQLException {
+
+        List<String> statements = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+
+        char quote = 0;
+        boolean bracketIdentifier = false;
+        boolean lineComment = false;
+        boolean blockComment = false;
+
+        for (int i = 0; i < script.length(); i++) {
+            char character = script.charAt(i);
+            char next = i + 1 < script.length()
+                ? script.charAt(i + 1)
+                : 0;
+
+            if (lineComment) {
+                current.append(character);
+
+                if (character == '\n' || character == '\r') {
+                    lineComment = false;
+                }
+
+                continue;
+            }
+
+            if (blockComment) {
+                current.append(character);
+
+                if (character == '*' && next == '/') {
+                    current.append(next);
+                    i++;
+                    blockComment = false;
+                }
+
+                continue;
+            }
+
+            if (quote != 0) {
+                current.append(character);
+
+                if (character == quote) {
+                    if (next == quote) {
+                        current.append(next);
+                        i++;
+                    } else {
+                        quote = 0;
+                    }
+                }
+
+                continue;
+            }
+
+            if (bracketIdentifier) {
+                current.append(character);
+
+                if (character == ']') {
+                    if (next == ']') {
+                        current.append(next);
+                        i++;
+                    } else {
+                        bracketIdentifier = false;
+                    }
+                }
+
+                continue;
+            }
+
+            if (character == '-' && next == '-') {
+                current.append(character).append(next);
+                i++;
+                lineComment = true;
+                continue;
+            }
+
+            if (character == '/' && next == '*') {
+                current.append(character).append(next);
+                i++;
+                blockComment = true;
+                continue;
+            }
+
+            if (character == '\'' || character == '"'
+                    || character == '`') {
+                quote = character;
+                current.append(character);
+                continue;
+            }
+
+            if (character == '[') {
+                bracketIdentifier = true;
+                current.append(character);
+                continue;
+            }
+
+            if (character == ';') {
+                String statement = current.toString().trim();
+
+                if (!statement.isEmpty()) {
+                    statements.add(statement);
+                }
+
+                current.setLength(0);
+                continue;
+            }
+
+            current.append(character);
+        }
+
+        if (quote != 0 || bracketIdentifier || blockComment) {
+            throw new SQLException(
+                "Migration contains an unterminated SQL quote or comment"
+            );
+        }
+
+        String remaining = current.toString().trim();
+
+        if (!remaining.isEmpty()) {
+            statements.add(remaining);
+        }
+
+        return statements;
     }
 
     private void rollback(

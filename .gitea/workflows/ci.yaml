@@ -2,12 +2,13 @@ name: Final Cut CI
 
 on:
   push:
-    branches: [main]
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   test:
+    name: Build and test
     runs-on: ubuntu-latest
 
     steps:
@@ -21,5 +22,5 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Build and test
+      - name: Verify project
         run: mvn --batch-mode clean verify

@@ -24,6 +24,12 @@ erDiagram
         TEXT screening_time "NOT NULL"
     }
 
+    SCHEMA_MIGRATIONS {
+        INTEGER version PK
+        TEXT description "NOT NULL"
+        TEXT applied_at "NOT NULL, UTC timestamp default"
+    }
+
     FILMS ||--o{ FILM_GENRES : has
     GENRES ||--o{ FILM_GENRES : categorizes
     FILMS ||--o{ SCREENINGS : schedules
