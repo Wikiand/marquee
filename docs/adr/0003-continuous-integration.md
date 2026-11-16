@@ -67,9 +67,10 @@ Results:
 ### GitHub Actions verification
 
 On 16 November 2026, the GitHub Actions workflow
-`Final Cut CI` completed successfully for pull request #13:
+`Final Cut CI` completed successfully for GitHub pull request #1.
+The successful workflow execution was run number 13:
 
-https://github.com/Wikiand/marquee/pull/13
+https://github.com/Wikiand/marquee/pull/1
 
 The workflow executed the Maven verification job using the configured
 Java 17 environment.

@@ -59,7 +59,7 @@ Final Cut was merged into the `main` branch through pull request #1.
 
 ## Final assessment
 
-The implementation has been merged into `main` and passes all 169 automated tests locally.
+The implementation was merged into `main` with 169 automated tests recorded at merge time. The latest local verification passes all 170 automated tests.
 
 Automated CI execution and merge-blocking status checks remain unverified because Gitea Actions are disabled by the repository administrator.
 
