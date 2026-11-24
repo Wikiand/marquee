@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Films | Marquee</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="container header-content">
+        <a class="brand" href="/films">MARQUEE</a>
+        <nav>
+            <a class="active" href="/films">Films</a>
+            <a href="/screenings">Screenings</a>
+        </nav>
+    </div>
+</header>
+
+<main class="container">
+    <section class="page-heading">
+        <p class="eyebrow">YOUR CINEMA GUIDE</p>
+        <h1>Explore films</h1>
+        <p class="subtitle">Discover films and find their upcoming screenings.</p>
+    </section>
+
+    <section class="filter-panel">
+        <form action="/films" method="get" class="filter-form">
+            <div class="field">
+                <label for="title">Film title</label>
+                <input id="title" name="title" type="search"
+                       placeholder="Search by title"
+                       th:value="${titleFilter}">
+            </div>
+
+            <div class="field">
+                <label for="genre">Genre</label>
+                <select id="genre" name="genre">
+                    <option value="">All genres</option>
+                    <option th:each="genre : ${genres}"
+                            th:value="${genre.name}"
+                            th:text="${genre.name}"
+                            th:selected="${genre.name == genreFilter}">
+                    </option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="year">Release year</label>
+                <input id="year" name="year" type="number"
+                       min="1" placeholder="e.g. 2024"
+                       th:value="${yearFilter}">
+            </div>
+
+            <div class="filter-actions">
+                <button type="submit">Search films</button>
+                <a class="clear-link" href="/films">Clear filters</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="results-heading">
+        <h2>Film catalogue</h2>
+        <p>
+            <strong th:text="${total}">0</strong>
+            films found
+        </p>
+    </section>
+
+    <section class="film-grid" th:if="${!#lists.isEmpty(films)}">
+        <article class="film-card" th:each="film : ${films}">
+            <div class="film-card-content">
+                <p class="film-year" th:text="${film.year}">2026</p>
+                <h3 th:text="${film.title}">Film title</h3>
+                <p class="film-description"
+                   th:text="${film.description != null ? film.description : 'No description available.'}">
+                    Film description
+                </p>
+
+                <div class="genre-list" th:if="${!#lists.isEmpty(film.genres)}">
+                    <span class="genre-tag"
+                          th:each="genre : ${film.genres}"
+                          th:text="${genre.name}">Genre</span>
+                </div>
+
+                <a class="text-link"
+                   th:href="${'/films/' + film.filmId}">
+                    View film details →
+                </a>
+            </div>
+        </article>
+    </section>
+
+    <section class="empty-state" th:if="${#lists.isEmpty(films)}">
+        <h2>No films found</h2>
+        <p>Try changing your search filters.</p>
+        <a class="text-link" href="/films">View all films</a>
+    </section>
+
+    <div class="pagination-info" th:if="${total > 0}">
+        Showing page <strong th:text="${page}">1</strong>
+        · <strong th:text="${films.size()}">0</strong> results on this page
+    </div>
+</main>
+
+<footer class="site-footer">
+    <div class="container">Marquee · Discover your next film</div>
+</footer>
+</body>
+</html>

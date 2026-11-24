@@ -7,12 +7,16 @@ import com.marquee.http.RequestBodyReader;
 import com.marquee.http.ServerErrorLogger;
 import com.marquee.model.Screening;
 import com.marquee.service.ScreeningService;
+import com.marquee.service.FilmService;
+import com.marquee.web.ContentNegotiator;
+import com.marquee.web.TemplateRenderer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,12 +26,24 @@ import java.util.Set;
 public final class ScreeningHandler implements HttpHandler {
 
     private final ScreeningService service;
+    private final FilmService filmService;
+    private final TemplateRenderer renderer;
     private final ObjectMapper mapper = new ObjectMapper();
     private final RequestBodyReader bodyReader =
             new RequestBodyReader(mapper);
 
     public ScreeningHandler(ScreeningService service) {
+        this(service, null, null);
+    }
+
+    public ScreeningHandler(
+            ScreeningService service,
+            FilmService filmService,
+            TemplateRenderer renderer
+    ) {
         this.service = service;
+        this.filmService = filmService;
+        this.renderer = renderer;
     }
 
     @Override
@@ -126,7 +142,36 @@ public final class ScreeningHandler implements HttpHandler {
             perPage
         );
 
-        send(exchange, 200, result);
+        if (wantsHtml(exchange)) {
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("screenings", result.screenings());
+            variables.put("page", result.page());
+            variables.put("total", result.total());
+            variables.put("filmFilter", filmId == null ? "" : filmId);
+            variables.put(
+                "venueFilter",
+                query.get("venue") == null ? "" : query.get("venue")
+            );
+            variables.put(
+                "dateFilter",
+                query.get("date") == null ? "" : query.get("date")
+            );
+
+            variables.put(
+                "films",
+                filmService == null
+                    ? List.of()
+                    : filmService.listFilms(null, null, null, 1, 100).films()
+            );
+
+            sendHtml(
+                exchange,
+                200,
+                renderer.render("screenings", variables)
+            );
+        } else {
+            send(exchange, 200, result);
+        }
     }
 
     private Map<String, String> parseQuery(String rawQuery) {
@@ -305,6 +350,31 @@ public final class ScreeningHandler implements HttpHandler {
             && message.contains("FOREIGN KEY constraint failed");
     }
 
+    private boolean wantsHtml(HttpExchange exchange) {
+        return renderer != null
+            && ContentNegotiator.prefersHtml(
+                exchange.getRequestHeaders()
+            );
+    }
+
+    private void sendHtml(
+            HttpExchange exchange, int status, String html
+    ) throws IOException {
+        byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
+
+        exchange.getResponseHeaders().set(
+            "Content-Type", "text/html; charset=utf-8"
+        );
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.getResponseHeaders().set("Vary", "Accept");
+
+        exchange.sendResponseHeaders(status, bytes.length);
+
+        try (var output = exchange.getResponseBody()) {
+            output.write(bytes);
+        }
+    }
+
     private void sendError(
             HttpExchange exchange, int status, String message
     ) throws IOException {
@@ -329,6 +399,7 @@ public final class ScreeningHandler implements HttpHandler {
         );
 
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.getResponseHeaders().set("Vary", "Accept");
         exchange.sendResponseHeaders(status, bytes.length);
 
         try (var output = exchange.getResponseBody()) {

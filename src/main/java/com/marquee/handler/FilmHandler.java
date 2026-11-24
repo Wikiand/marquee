@@ -9,6 +9,10 @@ import com.marquee.http.ServerErrorLogger;
 import com.marquee.model.Film;
 import com.marquee.model.FilmInput;
 import com.marquee.service.FilmService;
+import com.marquee.service.ScreeningService;
+import com.marquee.service.GenreService;
+import com.marquee.web.ContentNegotiator;
+import com.marquee.web.TemplateRenderer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -25,12 +29,27 @@ import java.util.Optional;
 public final class FilmHandler implements HttpHandler {
 
     private final FilmService service;
+    private final ScreeningService screeningService;
+    private final GenreService genreService;
+    private final TemplateRenderer renderer;
     private final ObjectMapper mapper = new ObjectMapper();
     private final RequestBodyReader bodyReader =
             new RequestBodyReader(mapper);
 
     public FilmHandler(FilmService service) {
+        this(service, null, null, null);
+    }
+
+    public FilmHandler(
+            FilmService service,
+            ScreeningService screeningService,
+            GenreService genreService,
+            TemplateRenderer renderer
+    ) {
         this.service = service;
+        this.screeningService = screeningService;
+        this.genreService = genreService;
+        this.renderer = renderer;
     }
 
     @Override
@@ -111,7 +130,30 @@ public final class FilmHandler implements HttpHandler {
                     genre, year, title, page, perPage
                 );
 
-                send(exchange, 200, result);
+                if (wantsHtml(exchange)) {
+                    Map<String, Object> variables = new HashMap<>();
+                    variables.put("films", result.films());
+                    variables.put("page", result.page());
+                    variables.put("perPage", result.per_page());
+                    variables.put("total", result.total());
+                    variables.put("titleFilter", title == null ? "" : title);
+                    variables.put("genreFilter", genre == null ? "" : genre);
+                    variables.put("yearFilter", year == null ? "" : year);
+                    variables.put(
+                        "genres",
+                        genreService == null
+                            ? List.of()
+                            : genreService.listGenres()
+                    );
+
+                    sendHtml(
+                        exchange,
+                        200,
+                        renderer.render("films", variables)
+                    );
+                } else {
+                    send(exchange, 200, result);
+                }
 
             } catch (RequestBodyException exception) {
                 sendError(
@@ -330,7 +372,28 @@ public final class FilmHandler implements HttpHandler {
             return;
         }
 
-        send(exchange, 200, film.get());
+        if (wantsHtml(exchange)) {
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("film", film.get());
+
+            List<com.marquee.model.Screening> screenings = List.of();
+
+            if (screeningService != null) {
+                screenings = screeningService.listScreenings(
+                    filmId, null, null, 1, 100
+                ).screenings();
+            }
+
+            variables.put("screenings", screenings);
+
+            sendHtml(
+                exchange,
+                200,
+                renderer.render("film-detail", variables)
+            );
+        } else {
+            send(exchange, 200, film.get());
+        }
     }
 
     private Map<String, String> parseQuery(String rawQuery) {
@@ -399,6 +462,31 @@ public final class FilmHandler implements HttpHandler {
         }
     }
 
+    private boolean wantsHtml(HttpExchange exchange) {
+        return renderer != null
+            && ContentNegotiator.prefersHtml(
+                exchange.getRequestHeaders()
+            );
+    }
+
+    private void sendHtml(
+            HttpExchange exchange, int status, String html
+    ) throws IOException {
+        byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
+
+        exchange.getResponseHeaders().set(
+            "Content-Type", "text/html; charset=utf-8"
+        );
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.getResponseHeaders().set("Vary", "Accept");
+
+        exchange.sendResponseHeaders(status, bytes.length);
+
+        try (var output = exchange.getResponseBody()) {
+            output.write(bytes);
+        }
+    }
+
     private void sendValidationError(
             HttpExchange exchange, List<String> details
     ) throws IOException {
@@ -436,6 +524,7 @@ public final class FilmHandler implements HttpHandler {
         );
 
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.getResponseHeaders().set("Vary", "Accept");
         exchange.sendResponseHeaders(status, bytes.length);
 
         try (var output = exchange.getResponseBody()) {

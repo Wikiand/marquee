@@ -5,6 +5,8 @@ import com.marquee.handler.FilmHandler;
 import com.marquee.handler.GenreHandler;
 import com.marquee.handler.ScreeningHandler;
 import com.marquee.http.RequestLoggingFilter;
+import com.marquee.web.StaticResourceHandler;
+import com.marquee.web.TemplateRenderer;
 import com.marquee.repository.FilmRepository;
 import com.marquee.repository.GenreRepository;
 import com.marquee.repository.ScreeningRepository;
@@ -77,11 +79,8 @@ public final class Main {
         FilmService filmService =
             new FilmService(filmRepository);
 
-        createLoggedContext(
-            server,
-            "/films",
-            new FilmHandler(filmService)
-        );
+        TemplateRenderer templateRenderer = new TemplateRenderer();
+
 
         GenreRepository genreRepository =
             new GenreRepository(database);
@@ -101,8 +100,28 @@ public final class Main {
 
         createLoggedContext(
             server,
+            "/films",
+            new FilmHandler(
+                filmService,
+                screeningService,
+                genreService,
+                templateRenderer
+            )
+        );
+        createLoggedContext(
+            server,
             "/screenings",
-            new ScreeningHandler(screeningService)
+            new ScreeningHandler(
+                screeningService,
+                filmService,
+                templateRenderer
+            )
+        );
+
+        createLoggedContext(
+            server,
+            "/static",
+            new StaticResourceHandler()
         );
 
         createLoggedContext(server, "/", exchange -> {

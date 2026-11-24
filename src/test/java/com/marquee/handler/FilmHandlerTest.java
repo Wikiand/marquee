@@ -7,6 +7,8 @@ import com.marquee.repository.GenreRepository;
 import com.marquee.repository.ScreeningRepository;
 import com.marquee.service.FilmService;
 import com.marquee.service.GenreService;
+import com.marquee.service.ScreeningService;
+import com.marquee.web.TemplateRenderer;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,9 +48,17 @@ class FilmHandlerTest {
         database.initialize();
 
         FilmService service = new FilmService(new FilmRepository(database));
+        GenreService genreService =
+            new GenreService(new GenreRepository(database));
+        ScreeningService screeningService =
+            new ScreeningService(new ScreeningRepository(database));
+        TemplateRenderer renderer = new TemplateRenderer();
 
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/films", new FilmHandler(service));
+        server.createContext(
+            "/films",
+            new FilmHandler(service, screeningService, genreService, renderer)
+        );
         server.setExecutor(Executors.newFixedThreadPool(2));
         server.start();
 
@@ -62,6 +72,50 @@ class FilmHandlerTest {
         if (server != null) {
             server.stop(0);
         }
+    }
+
+    @Test
+    void listFilmsReturnsHtmlWhenHtmlIsPreferred() throws Exception {
+        createFilm("Arrival", 2016);
+
+        HttpResponse<String> response =
+            request("GET", "/films", null, "text/html");
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.headers().firstValue("Content-Type")
+            .orElse("").startsWith("text/html"));
+        assertEquals("Accept", response.headers().firstValue("Vary").orElse(""));
+        assertTrue(response.body().contains("Arrival"));
+        assertTrue(response.body().contains("Films | Marquee"));
+    }
+
+    @Test
+    void getFilmReturnsHtmlWhenHtmlIsRequested() throws Exception {
+        JsonNode created = createFilm("Arrival", 2016);
+        int id = created.get("filmId").asInt();
+
+        HttpResponse<String> response =
+            request("GET", "/films/" + id, null, "text/html");
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.headers().firstValue("Content-Type")
+            .orElse("").startsWith("text/html"));
+        assertTrue(response.body().contains("Arrival"));
+    }
+
+    @Test
+    void listFilmsKeepsJsonWhenJsonIsRequested() throws Exception {
+        createFilm("Arrival", 2016);
+
+        HttpResponse<String> response =
+            request("GET", "/films", null, "application/json");
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.headers().firstValue("Content-Type")
+            .orElse("").startsWith("application/json"));
+        assertEquals("Accept", response.headers().firstValue("Vary").orElse(""));
+        assertEquals("Arrival", json(response).get("films").get(0)
+            .get("title").asText());
     }
 
     @Test
@@ -824,9 +878,19 @@ class FilmHandlerTest {
     private HttpResponse<String> request(
             String method, String path, String body
     ) throws Exception {
+        return request(method, path, body, null);
+    }
+
+    private HttpResponse<String> request(
+            String method, String path, String body, String accept
+    ) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
             .uri(URI.create(baseUrl + path))
             .header("Content-Type", "application/json");
+
+        if (accept != null) {
+            builder.header("Accept", accept);
+        }
 
         if (body == null) {
             builder.method(method, HttpRequest.BodyPublishers.noBody());

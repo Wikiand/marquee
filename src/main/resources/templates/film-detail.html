@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${film.title + ' | Marquee'}">Film | Marquee</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="container header-content">
+        <a class="brand" href="/films">MARQUEE</a>
+        <nav>
+            <a class="active" href="/films">Films</a>
+            <a href="/screenings">Screenings</a>
+        </nav>
+    </div>
+</header>
+
+<main class="container">
+    <p class="breadcrumb"><a href="/films">Films</a> / Film details</p>
+
+    <section class="detail-panel">
+        <p class="eyebrow">FILM DETAILS</p>
+        <p class="film-year" th:text="${film.year}">2026</p>
+        <h1 th:text="${film.title}">Film title</h1>
+
+        <p class="detail-description"
+           th:text="${film.description != null ? film.description : 'No description available.'}">
+            Film description
+        </p>
+
+        <div class="genre-list" th:if="${!#lists.isEmpty(film.genres)}">
+            <span class="genre-tag"
+                  th:each="genre : ${film.genres}"
+                  th:text="${genre.name}">Genre</span>
+        </div>
+        <p class="muted" th:if="${#lists.isEmpty(film.genres)}">
+            No genres assigned.
+        </p>
+    </section>
+
+    <section class="screening-section">
+        <div class="results-heading">
+            <h2>Screenings</h2>
+            <a class="text-link"
+               th:href="${'/screenings?film_id=' + film.filmId}">
+                View all screenings →
+            </a>
+        </div>
+
+        <div class="screening-list" th:if="${!#lists.isEmpty(screenings)}">
+            <article class="screening-card" th:each="screening : ${screenings}">
+                <div>
+                    <h3 th:text="${screening.venue}">Venue</h3>
+                    <p class="muted"
+                       th:text="${screening.screeningTime}">Screening time</p>
+                </div>
+                <span class="screening-id"
+                      th:text="${'Screening #' + screening.screeningId}">
+                    Screening #1
+                </span>
+            </article>
+        </div>
+
+        <div class="empty-state" th:if="${#lists.isEmpty(screenings)}">
+            <p>No screenings are currently listed for this film.</p>
+        </div>
+    </section>
+
+    <a class="back-link" href="/films">← Back to all films</a>
+</main>
+
+<footer class="site-footer">
+    <div class="container">Marquee · Discover your next film</div>
+</footer>
+</body>
+</html>

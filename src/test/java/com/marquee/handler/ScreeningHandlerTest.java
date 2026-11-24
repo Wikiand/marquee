@@ -6,6 +6,8 @@ import com.marquee.database.Database;
 import com.marquee.repository.FilmRepository;
 import com.marquee.repository.ScreeningRepository;
 import com.marquee.service.ScreeningService;
+import com.marquee.service.FilmService;
+import com.marquee.web.TemplateRenderer;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,9 +45,14 @@ class ScreeningHandlerTest {
 
         ScreeningService service =
             new ScreeningService(new ScreeningRepository(database));
+        FilmService filmService = new FilmService(new FilmRepository(database));
+        TemplateRenderer renderer = new TemplateRenderer();
 
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/screenings", new ScreeningHandler(service));
+        server.createContext(
+            "/screenings",
+            new ScreeningHandler(service, filmService, renderer)
+        );
         server.setExecutor(Executors.newFixedThreadPool(2));
         server.start();
 
@@ -59,6 +66,35 @@ class ScreeningHandlerTest {
         if (server != null) {
             server.stop(0);
         }
+    }
+
+    @Test
+    void listScreeningsReturnsHtmlWhenHtmlIsRequested() throws Exception {
+        createScreening("Main Hall", "2026-11-01T19:30:00Z");
+
+        HttpResponse<String> response =
+            request("GET", "/screenings", null, "text/html");
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.headers().firstValue("Content-Type")
+            .orElse("").startsWith("text/html"));
+        assertEquals("Accept", response.headers().firstValue("Vary").orElse(""));
+        assertTrue(response.body().contains("Screenings | Marquee"));
+        assertTrue(response.body().contains("Main Hall"));
+        assertTrue(response.body().contains("Test Film"));
+    }
+
+    @Test
+    void listScreeningsKeepsJsonWhenJsonIsRequested() throws Exception {
+        createScreening("Main Hall", "2026-11-01T19:30:00Z");
+
+        HttpResponse<String> response =
+            request("GET", "/screenings", null, "application/json");
+
+        assertEquals(200, response.statusCode());
+        assertTrue(response.headers().firstValue("Content-Type")
+            .orElse("").startsWith("application/json"));
+        assertEquals(1, json(response).get("total").asInt());
     }
 
     @Test
@@ -335,8 +371,18 @@ class ScreeningHandlerTest {
     private HttpResponse<String> request(
         String method, String path, String body
     ) throws Exception {
+        return request(method, path, body, null);
+    }
+
+    private HttpResponse<String> request(
+        String method, String path, String body, String accept
+    ) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
             .uri(URI.create(baseUrl + path));
+
+        if (accept != null) {
+            builder.header("Accept", accept);
+        }
 
         if (body != null) {
             builder.header("Content-Type", "application/json")

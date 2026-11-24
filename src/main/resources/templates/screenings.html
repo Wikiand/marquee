@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Screenings | Marquee</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<header class="site-header">
+    <div class="container header-content">
+        <a class="brand" href="/films">MARQUEE</a>
+        <nav>
+            <a href="/films">Films</a>
+            <a class="active" href="/screenings">Screenings</a>
+        </nav>
+    </div>
+</header>
+
+<main class="container">
+    <section class="page-heading">
+        <p class="eyebrow">FIND YOUR NEXT SHOWING</p>
+        <h1>Film screenings</h1>
+        <p class="subtitle">Browse available screenings by film, venue or date.</p>
+    </section>
+
+    <section class="filter-panel">
+        <form action="/screenings" method="get" class="filter-form">
+            <div class="field">
+                <label for="film_id">Film</label>
+                <select id="film_id" name="film_id">
+                    <option value="">All films</option>
+                    <option th:each="film : ${films}"
+                            th:value="${film.filmId}"
+                            th:text="${film.title}"
+                            th:selected="${film.filmId.toString() == filmFilter.toString()}">
+                    </option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="venue">Venue</label>
+                <input id="venue" name="venue" type="search"
+                       placeholder="Search venue"
+                       th:value="${venueFilter}">
+            </div>
+
+            <div class="field">
+                <label for="date">Date</label>
+                <input id="date" name="date" type="date"
+                       th:value="${dateFilter}">
+            </div>
+
+            <div class="filter-actions">
+                <button type="submit">Filter screenings</button>
+                <a class="clear-link" href="/screenings">Clear filters</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="results-heading">
+        <h2>Available screenings</h2>
+        <p>
+            <strong th:text="${total}">0</strong>
+            screenings found
+        </p>
+    </section>
+
+    <section class="screening-list"
+             th:if="${!#lists.isEmpty(screenings)}">
+        <article class="screening-card"
+                 th:each="screening : ${screenings}">
+            <div>
+                <h3>
+                    <a th:href="${'/films/' + screening.filmId}"
+                       th:text="${screening.filmTitle}">
+                        Film title
+                    </a>
+                </h3>
+                <p class="muted" th:text="${screening.venue}">Venue</p>
+                <p class="muted"
+                   th:text="${screening.screeningTime}">Screening time</p>
+            </div>
+            <span class="screening-id"
+                  th:text="${'Screening #' + screening.screeningId}">
+                Screening #1
+            </span>
+        </article>
+    </section>
+
+    <section class="empty-state"
+             th:if="${#lists.isEmpty(screenings)}">
+        <h2>No screenings found</h2>
+        <p>Try changing your filters or browse all screenings.</p>
+        <a class="text-link" href="/screenings">View all screenings</a>
+    </section>
+
+    <div class="pagination-info" th:if="${total > 0}">
+        Showing page <strong th:text="${page}">1</strong>
+        · <strong th:text="${screenings.size()}">0</strong>
+        results on this page
+    </div>
+
+    <a class="back-link" href="/films">← Browse films</a>
+</main>
+
+<footer class="site-footer">
+    <div class="container">Marquee · Discover your next film</div>
+</footer>
+</body>
+</html>
