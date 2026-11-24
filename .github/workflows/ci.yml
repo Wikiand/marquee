@@ -1,13 +1,16 @@
-name: Final Cut CI
+name: Marquee CI
 
 on:
   push:
-    branches: [master, main]
+    branches:
+      - '**'
   pull_request:
-    branches: [master, main]
+    branches:
+      - master
+      - main
 
 jobs:
-  test:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,5 +24,31 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Build and test
+      - name: Build, test, lint and generate coverage
         run: mvn --batch-mode clean verify
+
+      - name: Add coverage summary
+        if: success()
+        run: |
+          awk -F, '
+            NR > 1 {
+              missed += $4
+              covered += $5
+            }
+            END {
+              total = missed + covered
+              if (total > 0) {
+                printf "## JaCoCo instruction coverage\n\n**Coverage: %.2f%%** (%d covered instructions out of %d)\n", covered * 100 / total, covered, total
+              } else {
+                print "## JaCoCo instruction coverage\n\nNo instruction coverage data found."
+              }
+            }
+          ' target/site/jacoco/jacoco.csv >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload JaCoCo HTML report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marquee-jacoco-report
+          path: target/site/jacoco/
+          if-no-files-found: error

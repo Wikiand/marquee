@@ -2,6 +2,7 @@ package com.marquee;
 
 import com.marquee.database.Database;
 import com.marquee.handler.FilmHandler;
+import com.marquee.handler.HomeHandler;
 import com.marquee.handler.GenreHandler;
 import com.marquee.handler.ScreeningHandler;
 import com.marquee.http.RequestLoggingFilter;
@@ -124,17 +125,15 @@ public final class Main {
             new StaticResourceHandler()
         );
 
-        createLoggedContext(server, "/", exchange -> {
-            try {
-                sendJson(
-                    exchange,
-                    404,
-                    "{\"error\":{\"code\":404,\"message\":\"Route not found\",\"details\":[]}}"
-                );
-            } finally {
-                exchange.close();
-            }
-        });
+        createLoggedContext(
+            server,
+            "/",
+            new HomeHandler(
+                filmService,
+                genreService,
+                templateRenderer
+            )
+        );
 
         server.setExecutor(Executors.newFixedThreadPool(8));
         server.start();

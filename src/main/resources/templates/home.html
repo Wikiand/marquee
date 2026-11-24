@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#090909">
+    <meta name="description"
+          content="Discover films, explore genres and find your next cinema experience with Marquee.">
+    <title>Marquee | Discover your next film</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="home-page">
+
+<header class="site-header">
+    <div class="header-content">
+        <a class="brand" href="/" aria-label="Marquee home">MARQUEE<span>.</span></a>
+
+        <nav class="main-nav" aria-label="Main navigation">
+            <a class="active" href="/">Home</a>
+            <a href="/films">Movies</a>
+            <a href="/screenings">Screenings</a>
+        </nav>
+
+        <form class="nav-search" action="/films" method="get">
+            <label class="visually-hidden" for="home-search">Search movies</label>
+            <input id="home-search" type="search" name="title"
+                   placeholder="Search titles...">
+            <button type="submit" aria-label="Search">
+                <span aria-hidden="true">⌕</span>
+            </button>
+        </form>
+    </div>
+</header>
+
+<main>
+    <section class="hero" th:if="${featuredFilm != null}">
+        <div class="hero-backdrop"
+             th:style="${'background-image: url(/static/images/film-' + featuredFilm.filmId + '.jpg)'}">
+        </div>
+        <div class="hero-content">
+            <p class="hero-kicker">
+                <span class="live-dot"></span>
+                YOUR NEXT CINEMA EXPERIENCE
+            </p>
+
+            <p class="hero-label">FEATURED FILM</p>
+
+            <h1 th:text="${featuredFilm.title}">Featured film</h1>
+
+            <div class="hero-meta">
+                <span th:text="${featuredFilm.year}">2026</span>
+                <span class="meta-divider">•</span>
+                <span th:if="${!#lists.isEmpty(featuredFilm.genres)}"
+                      th:text="${featuredFilm.genres[0].name}">Genre</span>
+                <span th:if="${#lists.isEmpty(featuredFilm.genres)}">
+                    FEATURED
+                </span>
+            </div>
+
+            <p class="hero-description"
+               th:text="${featuredFilm.description != null
+                    ? featuredFilm.description
+                    : 'Discover this film and explore its details on Marquee.'}">
+                Discover your next film.
+            </p>
+
+            <div class="hero-actions">
+                <a class="button button-primary"
+                   th:href="${'/films/' + featuredFilm.filmId}">
+                    <span aria-hidden="true">▶</span>
+                    Explore film
+                </a>
+                <a class="button button-secondary" href="/films">
+                    Browse catalogue
+                </a>
+            </div>
+        </div>
+
+        <div class="hero-bottom-fade"></div>
+        <div class="hero-index">
+            <span class="hero-index-line"></span>
+            <span>01 / MARQUEE FEATURE</span>
+        </div>
+    </section>
+
+    <section class="hero hero-empty" th:if="${featuredFilm == null}">
+        <div class="hero-content">
+            <p class="hero-kicker">WELCOME TO MARQUEE</p>
+            <h1>Your next favourite film starts here.</h1>
+            <p class="hero-description">
+                The catalogue is waiting for its first films.
+                Add films through the API to bring this page to life.
+            </p>
+            <a class="button button-primary" href="/films">
+                Explore catalogue
+            </a>
+        </div>
+    </section>
+
+    <div class="home-content">
+        <section class="collection-section" th:if="${!#lists.isEmpty(films)}">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">HANDPICKED FOR YOUR NEXT NIGHT IN</p>
+                    <h2>Discover movies</h2>
+                </div>
+                <a href="/films" class="section-link">View all movies <span>→</span></a>
+            </div>
+
+            <div class="movie-row">
+                <article class="movie-card"
+                         th:each="film, iteration : ${films}">
+                    <a class="poster-link"
+                       th:href="${'/films/' + film.filmId}"
+                       th:aria-label="${'View ' + film.title}">
+                        <div class="movie-poster">
+                            <img th:src="${'/static/images/film-' + film.filmId + '.jpg'}"
+                                 th:alt="${film.title + ' poster'}"
+                                 loading="lazy"
+                                 decoding="async">
+                            <span class="poster-play" aria-hidden="true">▶</span>
+                        </div>
+                    </a>
+
+                    <div class="movie-card-info">
+                        <div class="movie-card-title-row">
+                            <h3 th:text="${film.title}">Film title</h3>
+                            <span class="movie-year"
+                                  th:text="${film.year}">2026</span>
+                        </div>
+                        <p th:if="${!#lists.isEmpty(film.genres)}"
+                           th:text="${film.genres[0].name}">Genre</p>
+                        <p th:if="${#lists.isEmpty(film.genres)}">
+                            Discover this film
+                        </p>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="genre-section" th:if="${!#lists.isEmpty(genres)}">
+            <div class="section-heading">
+                <div>
+                    <p class="section-kicker">FIND YOUR MOOD</p>
+                    <h2>Explore by genre</h2>
+                </div>
+            </div>
+
+            <div class="genre-grid">
+                <a class="genre-tile"
+                   th:each="genre, iteration : ${genres}"
+                   th:classappend="${'genre-tone-' + (iteration.index % 6)}"
+                   th:href="${'/films?genre=' + genre.name}">
+                    <span th:text="${genre.name}">Genre</span>
+                    <span class="genre-arrow">↗</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="discovery-banner">
+            <div>
+                <p class="section-kicker">THE BIG SCREEN STARTS HERE</p>
+                <h2>There's always another story to discover.</h2>
+                <p>Find a film. Find a screening. Make a night of it.</p>
+            </div>
+            <a class="button button-primary" href="/screenings">
+                Find screenings <span>→</span>
+            </a>
+        </section>
+    </div>
+</main>
+
+<footer class="site-footer">
+    <div class="footer-content">
+        <a class="brand" href="/">MARQUEE<span>.</span></a>
+        <p>Discover your next film.</p>
+        <div class="footer-links">
+            <a href="/films">Movies</a>
+            <a href="/screenings">Screenings</a>
+        </div>
+        <span class="footer-copy">© Marquee</span>
+    </div>
+</footer>
+
+</body>
+</html>
