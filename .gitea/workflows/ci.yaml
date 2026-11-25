@@ -1,4 +1,4 @@
-name: Final Cut CI
+name: Encore CI
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
       - main
 
 jobs:
-  test:
-    name: Build and test
+  build-and-test:
+    name: Build, test, lint and coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -22,5 +22,53 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Verify project
+      - name: Build, test, lint and generate coverage
         run: mvn --batch-mode clean verify
+
+      - name: Display JaCoCo coverage summary
+        run: |
+          set -euo pipefail
+
+          REPORT="target/site/jacoco/jacoco.csv"
+
+          if [ ! -s "$REPORT" ]; then
+            echo "ERROR: JaCoCo coverage report was not generated."
+            exit 1
+          fi
+
+          awk -F, '
+            NR > 1 {
+              instruction_missed += $4
+              instruction_covered += $5
+              branch_missed += $6
+              branch_covered += $7
+            }
+            END {
+              instruction_total = instruction_missed + instruction_covered
+              branch_total = branch_missed + branch_covered
+
+              print ""
+              print "========== JACOCO COVERAGE SUMMARY =========="
+
+              if (instruction_total > 0) {
+                printf "Instruction coverage: %.2f%% (%d/%d)\n",
+                  instruction_covered * 100 / instruction_total,
+                  instruction_covered,
+                  instruction_total
+              } else {
+                print "ERROR: No instruction coverage data."
+                exit 1
+              }
+
+              if (branch_total > 0) {
+                printf "Branch coverage:      %.2f%% (%d/%d)\n",
+                  branch_covered * 100 / branch_total,
+                  branch_covered,
+                  branch_total
+              } else {
+                print "Branch coverage:      N/A (no branches found)"
+              }
+
+              print "============================================="
+            }
+          ' "$REPORT"
