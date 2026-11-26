@@ -22,7 +22,6 @@ The project is built with Java 17, SQLite, JDBC, Maven, and Thymeleaf. Its archi
 - [Testing and code quality](#testing-and-code-quality)
 - [Continuous integration](#continuous-integration)
 - [Project documentation](#project-documentation)
-- [Limitations and security](#limitations-and-security)
 
 ## Overview
 
@@ -536,14 +535,6 @@ Additional technical information is available in the `docs/` directory.
 
 The architecture decision records document important engineering decisions, including database migrations, structured logging, continuous integration, and automated testing.
 
-## Limitations and security
-
-Marquee is a software development project demonstrating a Java web application, relational database management, HTTP API design, server-rendered pages, and automated verification.
-
-The current API does not implement user authentication or role-based authorisation.
-
-As a result, the application should not be exposed to an untrusted network with its data-management endpoints publicly accessible without first implementing an appropriate security layer.
-
 ## Project summary
 
 Marquee brings together:
@@ -555,9 +546,4 @@ Marquee brings together:
 - Input validation and consistent error handling.
 - Structured request and server-error logging.
 - Automated testing, code-quality checks, and CI verification.
-
-The goal is to demonstrate not only how to build an application that works, but also how to organise, test, document, and maintain it.
-
 ---
-
-**Marquee — cinema management through a browser and a JSON API.**
