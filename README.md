@@ -1,238 +1,563 @@
 # Marquee
 
+**A Java-based cinema management application with a browser interface and a REST-style JSON API.**
 
-**A lightweight REST API for managing films, genres, and cinema screenings.**
+Marquee is an application for managing films, genres, film–genre relationships, and cinema screenings. It brings together a browser-based experience and a JSON API, allowing people to explore cinema information through a web browser while also providing programmatic access to application resources.
 
-Marquee is a Java 17 backend project built with the JDK's built-in HTTP server, SQLite, and Maven. It provides CRUD operations for films, genres, and screenings, alongside filtering, pagination, input validation, and film–genre association management.
+The project is built with Java 17, SQLite, JDBC, Maven, and Thymeleaf. Its architecture separates HTTP handling, business logic, database access, and presentation. It also incorporates database migrations, input validation, structured request logging, automated testing, and continuous integration.
 
-The project focuses on clean backend architecture, relational data integrity, and automated testing without requiring a separate application server or database server.
+## Table of contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Technology stack](#technology-stack)
+- [Architecture](#architecture)
+- [Requirements](#requirements)
+- [Getting started](#getting-started)
+- [Configuration and database](#configuration-and-database)
+- [Using the application](#using-the-application)
+- [API reference](#api-reference)
+- [Validation and error handling](#validation-and-error-handling)
+- [Logging and reliability](#logging-and-reliability)
+- [Testing and code quality](#testing-and-code-quality)
+- [Continuous integration](#continuous-integration)
+- [Project documentation](#project-documentation)
+- [Limitations and security](#limitations-and-security)
+
+## Overview
+
+Marquee is designed around three main areas:
+
+1. **Film catalogue:** Create, browse, search, update, and delete film records.
+2. **Genre management:** Maintain genres and associate them with films.
+3. **Screening management:** Manage cinema screenings and retrieve them using useful filters.
+
+The application supports both HTML and JSON responses on supported routes. The browser interface uses server-rendered Thymeleaf templates, while API clients can interact with resources using HTTP requests.
+
+The browser-facing experience developed as part of the Encore work complements the existing management API. Both use the same application services and database.
 
 ## Features
 
-- **Film management** — create, retrieve, update, and delete films.
-- **Genre management** — manage genres and prevent duplicate genre names.
-- **Screening management** — manage screening schedules and associate screenings with films.
-- **Film–genre associations** — assign and remove genres from films.
-- **Filtering and pagination** — filter film and screening listings using query parameters.
-- **Input validation** — validate required fields, identifiers, dates, and pagination values.
-- **Relational integrity** — use SQLite foreign keys and cascading deletes to maintain relationships.
-- **Safer database access** — use parameterized SQL for query values.
-- **Automated testing** — verify application behaviour with JUnit tests and a Postman collection.
+### Film management
 
-## Technology Stack
+- Create, retrieve, update, and delete films.
+- Browse the film catalogue through the browser.
+- Filter films by title, genre, and release year.
+- View individual film details.
+- Associate films with multiple genres.
+- Retrieve paginated film collections through the API.
+
+### Genre management
+
+- Create, retrieve, update, and delete genres.
+- List available genres.
+- Assign genres to films.
+- Remove genre associations.
+- Prevent duplicate genre names and duplicate film–genre associations.
+
+### Screening management
+
+- Create, retrieve, update, and delete screenings.
+- Browse screenings through the browser interface.
+- Filter screenings by film, venue, and date.
+- Retrieve paginated screening collections through the API.
+- Associate screenings with existing films.
+
+### Browser interface
+
+- Server-rendered pages using Thymeleaf.
+- Homepage and application navigation.
+- Film catalogue.
+- Individual film detail pages.
+- Screening listings.
+- Static stylesheets and image resources.
+- HTML and JSON content negotiation on supported routes.
+
+### Engineering and reliability
+
+- Layered application architecture.
+- Prepared SQL statements for database operations.
+- Version-controlled database migrations.
+- Request-body validation and size limits.
+- Consistent JSON error responses.
+- Structured JSON request logging.
+- Centralised handling of unexpected server errors.
+- Automated unit and integration tests.
+- JaCoCo test coverage reporting.
+- Checkstyle code-quality checks.
+- Maven-based build and verification.
+- Continuous integration through GitHub Actions.
+
+## Technology stack
 
 | Technology | Purpose |
 |---|---|
-| Java 17 | Application language and runtime |
-| JDK HttpServer | HTTP request handling |
+| Java 17 | Application language |
+| Maven | Build and dependency management |
 | SQLite | Relational database |
 | JDBC | Database connectivity |
-| Maven | Build and dependency management |
-| Jackson | JSON parsing and serialization |
+| Jackson | JSON processing |
+| Thymeleaf | Server-side HTML rendering |
 | JUnit 5 | Automated testing |
-| Postman | API testing |
-
+| JaCoCo | Test coverage reporting |
+| Checkstyle | Code style and static checks |
+| GitHub Actions | Continuous integration |
 
 ## Architecture
 
-Marquee uses a layered architecture to separate HTTP handling, business logic, and database operations.
+Marquee uses a layered architecture to keep responsibilities separate and make the application easier to maintain and test.
 
-- **Handlers** — receive HTTP requests and return JSON responses.
-- **Services** — validate input and enforce business rules.
-- **Repositories** — execute database queries and manage persistence.
-- **Models** — represent films, genres, screenings, and input data.
-- **Database** — initialize SQLite and manage database connections.
+```text
+src/
+├── main/
+│   ├── java/com/marquee/
+│   │   ├── database/       # SQLite setup and migration runner
+│   │   ├── handler/        # HTTP route handlers
+│   │   ├── http/           # Request parsing, logging, and error handling
+│   │   ├── model/          # Application data models
+│   │   ├── repository/     # SQL queries and persistence
+│   │   ├── service/        # Application rules and validation
+│   │   ├── web/            # HTML rendering and static resources
+│   │   └── Main.java       # HTTP server entry point
+│   │
+│   └── resources/
+│       ├── static/
+│       └── templates/
+│
+└── test/
+    └── java/com/marquee/   # Automated tests
 
-This separation makes the application easier to maintain, test, and extend.
+migrations/
+├── 001_create_films_and_genres.sql
+├── 002_create_film_genres.sql
+├── 003_create_screenings.sql
+├── 004_create_database_indexes.sql
+└── 005_add_screening_room.sql
 
-## Prerequisites
+config/
+└── checkstyle/
+    └── checkstyle.xml
 
-Before running Marquee, make sure you have:
+docs/
+├── adr/
+├── api.md
+├── design-decisions.md
+├── erd.mmd
+├── retrospective.md
+└── testing.md
 
-- Java Development Kit (JDK) 17 or later
-- Apache Maven
-- Git (to clone the repository)
-- Postman or `curl` for testing the API
-
-## Installation and Setup
-
-Clone the repository and enter the project directory:
-
-    git clone https://github.com/Wikiand/marquee.git
-    cd marquee
-
-Build the project and run the automated tests:
-
-    mvn clean test
-
-Start the API:
-
-    mvn dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
-    java -cp "target/classes:$(cat target/classpath.txt)" com.marquee.Main
-
-The API listens on port `8080` by default. Check its health using:
-
-    curl -i http://localhost:8080/health
-
-### Database and Seed Data
-
-On first startup, Marquee creates the database schema but leaves the
-catalogue empty. Load sample data separately using the `seed.sql` instructions
-below when you want a populated catalogue.
-
-To load the complete catalogue from `seed.sql`:
-
-1. Start Marquee once to initialize the database.
-2. Stop the API with `Ctrl+C`.
-3. Run the seed script against the initialized database:
-
-       sqlite3 data/marquee.db < seed.sql
-
-4. Restart Marquee.
-
-The SQL seed includes 24 films, 8 genres, their genre associations, and
-30 screenings. It uses explicit IDs and conflict handling so existing
-matching records are not inserted again. It does not overwrite existing
-records with the same IDs.
-
-If you configure a different database path with the `MARQUEE_DB`
-environment variable, use that path in the `sqlite3` command instead.
-
-## API Reference
-
-Base URL: `http://localhost:8080`
-
-### Health
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/health` | Check API health |
-
-### Films
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/films` | List films with filtering and pagination |
-| POST | `/films` | Create a film |
-| GET | `/films/{id}` | Retrieve a film |
-| PUT | `/films/{id}` | Update a film |
-| DELETE | `/films/{id}` | Delete a film |
-| POST | `/films/{id}/genres` | Assign a genre to a film |
-| DELETE | `/films/{id}/genres/{genreId}` | Remove a genre from a film |
-
-### Genres
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/genres` | List genres |
-| POST | `/genres` | Create a genre |
-| GET | `/genres/{id}` | Retrieve a genre |
-| PUT | `/genres/{id}` | Update a genre |
-| DELETE | `/genres/{id}` | Delete a genre |
-
-### Screenings
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/screenings` | List screenings with filtering and pagination |
-| POST | `/screenings` | Create a screening |
-| GET | `/screenings/{id}` | Retrieve a screening |
-| PUT | `/screenings/{id}` | Update a screening |
-| DELETE | `/screenings/{id}` | Delete a screening |
-
-### Query Parameters
-
-The `GET /films` endpoint supports:
-
-| Parameter | Description |
-|---|---|
-| `title` | Filter films by title |
-| `genre` | Filter films by genre |
-| `year` | Filter films by release year |
-| `page` | Page number (default: `1`) |
-| `per_page` | Results per page (default: `20`, maximum: `100`) |
-
-The `GET /screenings` endpoint supports:
-
-| Parameter | Description |
-|---|---|
-| `film_id` | Filter screenings by film ID |
-| `venue` | Filter screenings by venue |
-| `date` | Filter screenings by date |
-| `page` | Page number (default: `1`) |
-| `per_page` | Results per page (default: `20`, maximum: `100`) |
-
-Example requests:
-
-    GET /films?genre=Drama&page=1&per_page=10
-    GET /screenings?venue=Nairobi&date=2026-10-19
-
-## Example Requests
-
-Check API health:
-
-    curl http://localhost:8080/health
-
-List films:
-
-    curl http://localhost:8080/films
-
-Filter films by title and paginate results:
-
-    curl "http://localhost:8080/films?title=Matrix&page=1&per_page=10"
-
-List genres:
-
-    curl http://localhost:8080/genres
-
-List screenings at a venue:
-
-    curl "http://localhost:8080/screenings?venue=Nairobi"
-
-Create a genre:
-
-    curl -X POST http://localhost:8080/genres \
-      -H "Content-Type: application/json" \
-      -d '{"name":"Science Fiction"}'
-
-For complete request examples, see the Postman collection in `postman/Marquee.postman_collection.json`.
-
-## Database Configuration
-
-Marquee uses SQLite, so a separate database server is not required.
-
-By default, the application uses `data/marquee.db`. You can override this location with the `MARQUEE_DB` environment variable.
-
-Example:
-
-    MARQUEE_DB=/tmp/marquee.db java -cp "target/classes:$(cat target/classpath.txt)" com.marquee.Main
-
-Ensure the database directory exists and is writable before starting the application.
-
-## Automated Testing
-
-Marquee uses JUnit 5 for automated tests covering HTTP handlers,
-service behavior, database operations, migrations, and error handling.
-
-Run the complete verification lifecycle, including tests and the
-JaCoCo coverage report:
-
-```bash
-mvn --batch-mode clean verify
+postman/
+└── Marquee.postman_collection.json
 ```
 
-The JaCoCo HTML report is generated at:
+### Layer responsibilities
 
-`target/site/jacoco/index.html`
+| Layer | Responsibility |
+|---|---|
+| Handler | Receives HTTP requests and builds HTTP responses. |
+| Service | Applies business rules and validates application operations. |
+| Repository | Executes database queries and persistence operations. |
+| Model | Represents application data. |
+| Database | Manages SQLite connections and schema migrations. |
+| HTTP | Handles request-body reading, request logging, and server errors. |
+| Web | Handles HTML templates, content negotiation, and static resources. |
 
-See the [Testing Guide](docs/testing.md) for test execution,
-integration checks, and demonstration procedures.
-## Project Documentation
+### Request lifecycle
 
-- [API Reference](docs/api.md) — detailed endpoint documentation.
+A typical request follows this sequence:
 
-- [Testing Guide](docs/testing.md) — instructions for running and testing the API.
-- [Design Decisions](docs/design-decisions.md) — architecture decision index.
-- [Architecture Decision Records](docs/adr/) — detailed migration, logging, CI, and testing decisions.
-- [Entity Relationship Diagram](docs/erd.mmd) — database relationships.
-- [Postman Collection](postman/Marquee.postman_collection.json) — API requests for manual testing.
+1. The HTTP server receives a request.
+2. The relevant handler interprets the route, parameters, and request body.
+3. The service layer validates input and applies business rules.
+4. The repository performs the required database operation.
+5. The handler returns an appropriate HTML or JSON response.
+6. The request logging filter records the request outcome and duration.
+
+This separation allows individual application components to be tested without requiring every test to exercise the entire HTTP server.
+
+## Requirements
+
+Before running the project, install:
+
+- Java Development Kit (JDK) 17.
+- Apache Maven.
+- Git.
+
+Verify the installations:
+
+```bash
+java -version
+mvn -version
+git --version
+```
+
+## Getting started
+
+### 1. Open the project directory
+
+If you already have the source code:
+
+```bash
+cd ~/marquee
+```
+
+If you are starting from a repository checkout, clone the repository using its configured remote URL and enter the project directory.
+
+### 2. Build and verify the application
+
+Run:
+
+```bash
+mvn clean verify
+```
+
+This compiles the application, runs the configured tests and code-quality checks, and generates the JaCoCo coverage report.
+
+### 3. Build the runtime classpath
+
+Run:
+
+```bash
+mvn dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
+```
+
+### 4. Start the application
+
+Run:
+
+```bash
+java -cp "target/classes:$(cat target/classpath.txt)" com.marquee.Main
+```
+
+The HTTP server listens on port `8080`.
+
+Open the browser:
+
+```text
+http://localhost:8080
+```
+
+Check the application health:
+
+```bash
+curl http://localhost:8080/health
+```
+
+To stop the application, press `Ctrl+C` in the terminal running the server.
+
+## Configuration and database
+
+Marquee uses SQLite for persistent storage.
+
+The default database location is:
+
+```text
+data/marquee.db
+```
+
+The database location can be changed using the `MARQUEE_DB` environment variable.
+
+For example:
+
+```bash
+MARQUEE_DB=/tmp/marquee-test.db \
+java -cp "target/classes:$(cat target/classpath.txt)" com.marquee.Main
+```
+
+### Database migrations
+
+Database schema changes are managed through versioned SQL migrations.
+
+The migration runner:
+
+- Tracks migrations that have already been applied.
+- Applies outstanding migrations in version order.
+- Maintains a migration history table.
+- Supports controlled schema evolution.
+- Helps detect incompatible database states.
+
+This approach avoids relying on manually recreating the database whenever the application schema changes.
+
+## Using the application
+
+The browser interface provides the following main pages:
+
+| Page | Route | Description |
+|---|---|---|
+| Homepage | `/` | Application entry point and navigation. |
+| Film catalogue | `/films` | Browse and filter films. |
+| Film details | `/films/{id}` | View a film, its genres, and associated screenings. |
+| Screenings | `/screenings` | Browse and filter cinema screenings. |
+
+The film collection and film detail routes support content negotiation.
+
+For example, a browser can request HTML:
+
+```bash
+curl -H "Accept: text/html" http://localhost:8080/films
+```
+
+An API client can request JSON:
+
+```bash
+curl -H "Accept: application/json" http://localhost:8080/films
+```
+
+The response format depends on the route's supported content negotiation behaviour.
+
+## API reference
+
+The API base URL for local development is:
+
+```text
+http://localhost:8080
+```
+
+### Main endpoints
+
+| Resource | HTTP method | Endpoint |
+|---|---|---|
+| Health | GET | `/health` |
+| Films | GET, POST | `/films` |
+| Individual film | GET, PUT, DELETE | `/films/{id}` |
+| Add film genre | POST | `/films/{id}/genres` |
+| Remove film genre | DELETE | `/films/{id}/genres/{genre_id}` |
+| Genres | GET, POST | `/genres` |
+| Individual genre | GET, PUT, DELETE | `/genres/{id}` |
+| Screenings | GET, POST | `/screenings` |
+| Individual screening | GET, PUT, DELETE | `/screenings/{id}` |
+
+### Example requests
+
+Check application health:
+
+```bash
+curl http://localhost:8080/health
+```
+
+Retrieve films:
+
+```bash
+curl -H "Accept: application/json" \
+http://localhost:8080/films
+```
+
+Search films by title:
+
+```bash
+curl -G \
+-H "Accept: application/json" \
+--data-urlencode "title=matrix" \
+http://localhost:8080/films
+```
+
+Filter films by release year:
+
+```bash
+curl -G \
+--data-urlencode "year=2024" \
+http://localhost:8080/films
+```
+
+Retrieve genres:
+
+```bash
+curl http://localhost:8080/genres
+```
+
+Filter screenings by venue:
+
+```bash
+curl -G \
+--data-urlencode "venue=IMAX" \
+http://localhost:8080/screenings
+```
+
+### Pagination
+
+Film and screening collection endpoints support pagination.
+
+| Parameter | Description |
+|---|---|
+| `page` | Page number; defaults to 1. |
+| `per_page` | Number of records per page; defaults to 20 and has a maximum of 100. |
+
+Paginated responses include pagination metadata and the relevant resource collection.
+
+For complete request bodies, response examples, supported filters, and endpoint behaviour, see [`docs/api.md`](docs/api.md).
+
+## Validation and error handling
+
+The application validates incoming data before performing operations.
+
+Examples include:
+
+- Required fields must be provided.
+- Resource identifiers must be valid positive integers.
+- Referenced films and genres must exist.
+- Duplicate genre names are rejected.
+- Duplicate film–genre associations are rejected.
+- Invalid query parameters are rejected where the API defines a supported parameter set.
+
+Errors use a consistent JSON structure:
+
+```json
+{
+  "error": {
+    "code": 400,
+    "message": "Invalid request",
+    "details": []
+  }
+}
+```
+
+The error code corresponds to the HTTP status code.
+
+The application uses appropriate HTTP responses for invalid requests, missing resources, conflicts, and unexpected server failures.
+
+Internal exception details are not exposed in generic server-error responses.
+
+## Logging and reliability
+
+Marquee includes structured request logging through its HTTP logging filter.
+
+Each request log records:
+
+- `timestamp`
+- `method`
+- `path`
+- `status`
+- `duration_ms`
+
+Logs are written in JSON format to make them easier to inspect and process.
+
+Request bodies are not included in the request log.
+
+Unexpected server errors are handled separately so that useful diagnostic information can be recorded without exposing internal implementation details to API clients.
+
+Database operations use prepared statements rather than building SQL queries through direct string concatenation.
+
+## Testing and code quality
+
+Automated tests help verify application behaviour across the database, services, handlers, migrations, and HTTP-related functionality.
+
+Run the complete verification lifecycle:
+
+```bash
+mvn clean verify
+```
+
+Run tests only:
+
+```bash
+mvn test
+```
+
+Run a specific test class:
+
+```bash
+mvn -Dtest=MigrationRunnerTest test
+```
+
+Run a specific test method:
+
+```bash
+mvn -Dtest=FilmHandlerTest#unexpectedDatabaseFailureReturnsGeneric500AndLogsDetails test
+```
+
+### JaCoCo coverage report
+
+After running verification, open:
+
+```text
+target/site/jacoco/index.html
+```
+
+The report provides coverage information for the tested application code.
+
+### Checkstyle
+
+The Checkstyle configuration is located at:
+
+```text
+config/checkstyle/checkstyle.xml
+```
+
+It is integrated into the Maven build and checks both application and test source code.
+
+### Postman collection
+
+The project includes a Postman collection:
+
+```text
+postman/Marquee.postman_collection.json
+```
+
+Import it into Postman to exercise the API.
+
+The collection uses the following default base URL:
+
+```text
+http://localhost:8080
+```
+
+## Continuous integration
+
+The GitHub Actions workflow is located at:
+
+```text
+.github/workflows/ci.yml
+```
+
+The workflow runs Maven verification on pushes and pull requests targeting the configured main branches.
+
+It also:
+
+- Uses Java 17.
+- Runs the clean Maven verification lifecycle.
+- Produces JaCoCo coverage information.
+- Adds coverage information to the workflow summary.
+- Uploads the HTML coverage report as a build artifact.
+
+This provides an automated verification process for changes made to the project.
+
+## Project documentation
+
+Additional technical information is available in the `docs/` directory.
+
+| Document | Description |
+|---|---|
+| `docs/api.md` | API endpoints, parameters, requests, and responses. |
+| `docs/testing.md` | Testing instructions and verification guidance. |
+| `docs/design-decisions.md` | Application design decisions. |
+| `docs/erd.mmd` | Entity relationship diagram. |
+| `docs/retrospective.md` | Project retrospective. |
+| `docs/adr/` | Architecture decision records. |
+
+The architecture decision records document important engineering decisions, including database migrations, structured logging, continuous integration, and automated testing.
+
+## Limitations and security
+
+Marquee is a software development project demonstrating a Java web application, relational database management, HTTP API design, server-rendered pages, and automated verification.
+
+The current API does not implement user authentication or role-based authorisation.
+
+As a result, the application should not be exposed to an untrusted network with its data-management endpoints publicly accessible without first implementing an appropriate security layer.
+
+## Project summary
+
+Marquee brings together:
+
+- A browser-based cinema catalogue and screening interface.
+- A JSON API for managing cinema resources.
+- A layered Java application architecture.
+- SQLite persistence and versioned schema migrations.
+- Input validation and consistent error handling.
+- Structured request and server-error logging.
+- Automated testing, code-quality checks, and CI verification.
+
+The goal is to demonstrate not only how to build an application that works, but also how to organise, test, document, and maintain it.
+
+---
+
+**Marquee — cinema management through a browser and a JSON API.**
