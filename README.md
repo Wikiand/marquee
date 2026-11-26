@@ -9,6 +9,7 @@ The project is built with Java 17, SQLite, JDBC, Maven, and Thymeleaf. Its archi
 ## Table of contents
 
 - [Overview](#overview)
+- [Screenshots](#screenshots)
 - [Features](#features)
 - [Technology stack](#technology-stack)
 - [Architecture](#architecture)
@@ -34,6 +35,20 @@ Marquee is designed around three main areas:
 The application supports both HTML and JSON responses on supported routes. The browser interface uses server-rendered Thymeleaf templates, while API clients can interact with resources using HTTP requests.
 
 The browser-facing experience developed as part of the Encore work complements the existing management API. Both use the same application services and database.
+
+## Screenshots
+
+The following screenshots demonstrate the Encore browser interface and the project's continuous integration and code-coverage reporting.
+
+| Screenshot | What it demonstrates |
+|---|---|
+| [Browser interface](docs/screenshots/encore-browser-interface.png) | The application running locally in a browser. |
+| [GitHub Actions pipeline](docs/screenshots/github-actions-pipeline.png) | The automated CI workflow and its successful execution. |
+| [CI coverage summary](docs/screenshots/ci-coverage-summary.png) | JaCoCo coverage results reported by the pipeline. |
+| [JaCoCo artifact upload](docs/screenshots/jacoco-artifact-upload.png) | The generated coverage report being uploaded as a workflow artifact. |
+| [JaCoCo HTML report](docs/screenshots/jacoco-html-report.png) | The HTML coverage report opened in a browser. |
+| [Additional application view](docs/screenshots/encore-additional-view.png) | An additional view of the application. |
+
 
 ## Features
 
