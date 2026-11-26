@@ -1,4 +1,4 @@
-name: Marquee CI
+name: Encore CI
 
 on:
   push:
@@ -6,11 +6,13 @@ on:
       - '**'
   pull_request:
     branches:
-      - master
+      - work/final-cut-error-logging
       - main
+      - master
 
 jobs:
   build-and-test:
+    name: Build, test, lint and coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -30,6 +32,15 @@ jobs:
       - name: Add coverage summary
         if: success()
         run: |
+          set -euo pipefail
+
+          REPORT="target/site/jacoco/jacoco.csv"
+
+          if [ ! -s "$REPORT" ]; then
+            echo "JaCoCo coverage report was not generated."
+            exit 1
+          fi
+
           awk -F, '
             NR > 1 {
               missed += $4
@@ -37,18 +48,20 @@ jobs:
             }
             END {
               total = missed + covered
+
               if (total > 0) {
                 printf "## JaCoCo instruction coverage\n\n**Coverage: %.2f%%** (%d covered instructions out of %d)\n", covered * 100 / total, covered, total
               } else {
-                print "## JaCoCo instruction coverage\n\nNo instruction coverage data found."
+                print "No instruction coverage data found."
+                exit 1
               }
             }
-          ' target/site/jacoco/jacoco.csv >> "$GITHUB_STEP_SUMMARY"
+          ' "$REPORT" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload JaCoCo HTML report
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: marquee-jacoco-report
+          name: encore-jacoco-report
           path: target/site/jacoco/
           if-no-files-found: error
