@@ -4,7 +4,7 @@ on:
   push:
   pull_request:
     branches:
-      - main
+      - work/final-cut-error-logging
 
 jobs:
   build-and-test:
